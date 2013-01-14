@@ -8,13 +8,15 @@
 # 2012-03-16, V0.1 jw - initial draught: argparse, pdftohtml-xml, font.metrics
 # 2012-03-20, V0.2 jw - all is there, but the coordinate systems of my overlay 
 #                       does not match. Sigh.
-# 2013-01-13, V0.3 jw - support encrypted files added, 
+# 2013-01-12, V0.3 jw - support encrypted files added,
 #                       often unencrypted is actually encrypted with key=''
 #                     - coordinate transformation from xml to pdf canvas added
 #                     - refactored: xml2wordlist, xml2fontinfo, create_mark
 #                     - added experimental zap_letter_spacing()
-# 2013-01-15, V0.4 jw - added class DecoratedWord, 
+# 2013-01-13, V0.4 jw - added class DecoratedWord
 #                     - option --compare works!
+# 2013-01-14, V0.5 jw - added xmlfile2wordlist, textfile2wordlist. fixed -e
+#                     - added option --mark
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -32,9 +34,9 @@
 # - add baloon popups containing deleted or replaced text!
 # - if pagebreaks are within deleted text, point this out in the baloon popup.
 # - SequenceMatcher() likes to announce long stretches of text as replaced.
-#   Can we tune this, to show more insert and delete?
+#   Can we tune this, to show more add and delete?
 #   If the replaced text has a low correlation ratio, 
-#   we should change the replace mark into a combination of delete and insert.
+#   we should change the replace mark into a combination of delete and add.
 # - one letter changes always become word changes.
 #   Either run in single character mode. Or try to trim the replaced text for 
 #   common suffix or common prefix.
@@ -45,7 +47,7 @@
 #    sequences of characters within similar (near-matching) lines."
 
 
-__VERSION__ = '0.4'
+__VERSION__ = '0.5'
 
 from cStringIO import StringIO
 from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
@@ -61,8 +63,11 @@ from argparse import ArgumentParser
 import pygame.font as PGF
 from difflib import SequenceMatcher
 
-# allow debug printing into less:
+# I fail to understand the standard encode() decode() methods.
+# But the codecs module always does what I mean.
 import codecs
+
+# allow debug printing into less:
 sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 
 # from pdfminer.fontmetrics import FONT_METRICS
@@ -144,7 +149,43 @@ def pdf2xml(parser, infile, key=''):
   print "pdf2xml done"
   return dom
 
-def txt2wordlist(text, context):
+class DecoratedWord(list):
+  def __eq__(a,b):
+    return a[0] == b[0]
+  def __hash__(self):
+    return hash(self[0])
+
+def xmlfile2wordlist(fname):
+  """ works well with xml from pdftohtml -xml.
+      """
+  wl = []
+  tree= ET.parse(fname)
+  dom = tree.getroot()
+  for e in dom.iter():
+    t = "".join(e.itertext())
+    for w in t.split():
+      wl.append(DecoratedWord([w,None,None,{}]))
+  return wl
+
+def textfile2wordlist(fname):
+  """ CAUTION if you create your text files with pdftotxt, 
+      things may appear in different ordering than with pdftohtml, resulting
+      in an enormous diff.
+      """
+  wl = []
+  lnr = 0
+  # assume .txt files are utf8 encoded, but please survive binary garbage.
+  f = codecs.open(fname, 'r', 'utf-8', errors='ignore')
+  while True:
+    line = f.readline()
+    if len(line)==0: break
+    lnr += 1
+    for w in line.split():
+      wl.append(DecoratedWord([w,None,None,{'l':lnr}]))
+  f.close()
+  return wl
+  
+def textline2wordlist(text, context):
   """returns a list of 4-element lists like this:
      [word, text, idx, context]
      where the word was found in the text string at offset idx.
@@ -156,11 +197,6 @@ def txt2wordlist(text, context):
      Thus our wordlists work well as sequences with difflib, although they also
      transport all the context to compute exact page positions later.
   """
-  class DecoratedWord(list):
-    def __eq__(a,b):
-      return a[0] == b[0]
-    def __hash__(self):
-      return hash(self[0])
 
   wl = []
   idx = 0
@@ -204,7 +240,7 @@ def xml2wordlist(dom, last_page=None):
       f=e.attrib['font']
       text = ''
       for t in e.itertext(): text += t
-      wl += txt2wordlist(text, {'p':p_nr, 'x':x, 'y':y, 'w':w, 'h':h, 'f':f})
+      wl += textline2wordlist(text, {'p':p_nr, 'x':x, 'y':y, 'w':w, 'h':h, 'f':f})
     #pprint(wl)
   print "xml2wordlist: %d pages" % p_nr
   return wl
@@ -243,6 +279,7 @@ def main():
   parser.def_del_col = ['red',    [1,.3,.3]]
   parser.def_chg_col = ['yellow', [.8,.8,0]]
   parser.def_output = 'output.pdf'
+  parser.def_mark= 'I,D,C'
   parser.add_argument("-o", "--output", metavar="OUTFILE", default=parser.def_output,
                       help="write output to FILE; default: "+parser.def_output)
   parser.add_argument("-s", "--search", metavar="WORD_REGEXP", 
@@ -250,15 +287,24 @@ def main():
   parser.add_argument("-d", "--decrypt-key", metavar="DECRYPT_KEY", default=parser.def_decrypt_key,
                       help="open an encrypted PDF; default: KEY='"+parser.def_decrypt_key+"'")
   parser.add_argument("-c", "--compare-text", metavar="OLDFILE",
-                      help="mark inserted, deleted and replaced text with regard to OLDFILE. This works word by word.")
+                      help="mark added, deleted and replaced text (or see -m) with regard to OLDFILE. \
+                            File formats .pdf, .xml, .txt are recognized by their suffix. \
+                            The comparison works word by word.")
+  parser.add_argument("-m", "--mark", metavar="OPS", default=parser.def_mark,
+                      help="specify what to mark. Used with -c. Allowed values are 'add','delete','change','equal'. \
+                            Multiple values can be listed comma-seperated; abbreviations are allowed.\
+                            Default: " + str(parser.def_mark))
   parser.add_argument("-e", "--exclude-irrelevant-pages", default=False, action="store_true",
-                      help="with -s: show only matching pages; with -c: show only changed pages; default: reproduce all pages from INFILE in OUTFILE")
+                      help="with -s: show only matching pages; with -c: show only changed pages; \
+                      default: reproduce all pages from INFILE in OUTFILE")
   parser.add_argument("-i", "--nocase", default=False, action="store_true",
                       help="make -s case insensitive; default: case sensitive")
   parser.add_argument("-L", "--last-page", metavar="LAST_PAGE",
-                      help="limit pages processed; this counts pages, it does not use document page numbers; default: all pages")
+                      help="limit pages processed; this counts pages, it does not use document \
+                      page numbers; default: all pages")
   parser.add_argument("-t", "--transparency", type=float, default=parser.def_trans, metavar="TRANSP", 
-                      help="set transparency of the highlight; invisible: 0.0; full opaque: 1.0; default: " + str(parser.def_trans))
+                      help="set transparency of the highlight; invisible: 0.0; full opaque: 1.0; \
+                      default: " + str(parser.def_trans))
   parser.add_argument("-C", "--search-color", default=parser.def_sea_col[1], nargs=3, metavar="N",
                       help="set color of the search highlight as an RGB triplet; default is %s: %s" 
                       % (parser.def_sea_col[0], ' '.join(map(lambda x: str(x), parser.def_sea_col[1])))
@@ -277,8 +323,14 @@ def main():
   dom2 = None
   wordlist2 = None
   if args.compare_text:
-    dom2 = pdf2xml(parser, args.compare_text, args.decrypt_key)
-    wordlist2 = xml2wordlist(dom2, args.last_page)
+    if re.search('\.pdf$', args.compare_text, re.I):
+      dom2 = pdf2xml(parser, args.compare_text, args.decrypt_key)
+      wordlist2 = xml2wordlist(dom2, args.last_page)
+    if re.search('\.xml$', args.compare_text, re.I):
+      wordlist2 = xmlfile2wordlist(args.compare_text)
+    else:
+      # assuming a plain text document
+      wordlist2 = textfile2wordlist(args.compare_text)
 
   if debug:
     dom1.write(args.output + ".1.xml")
@@ -306,10 +358,11 @@ def main():
       wordlist=wordlist2,
       nocase=args.nocase,
       last_page=args.last_page,
+      mark_ops=args.mark,
       ext={'a': {'c':parser.def_add_col[1]},
            'd': {'c':parser.def_del_col[1]},
            'c': {'c':parser.def_chg_col[1]},
-           'm': {'c':args.search_color} })
+           'e': {'c':args.search_color} })
 
   # pprint(page_marks[0])
 
@@ -343,7 +396,7 @@ def main():
   print "input pages: %d" % last_page
 
   for i in range(0,last_page):
-    if len(page_marks[i]['rect']) == 0:
+    if args.exclude_irrelevant_pages and len(page_marks[i]['rect']) == 0:
       continue
     print " page %d: %d hits" % (page_marks[i]['nr'], len(page_marks[i]['rect']))
 
@@ -449,22 +502,27 @@ def zap_letter_spacing(text):
   return t
 
 
-def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, last_page=None):
+def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, last_page=None, mark_ops="D,A,C"):
   """traverse the XML dom tree, (which is expected to come from pdf2html -xml)
      find all occurances of re_pattern on all pages, returning rect list for 
      each page, giving the exact coordinates of the bounding box of all 
      occurances. Font metrics are used to interpolate into the line fragments 
      found in the dom tree.
-     Keys and values from ext['m'] are merged into the DecoratedWord output for pattern matches.
+     Keys and values from ext['e'] are merged into the DecoratedWord output for pattern matches.
      If re_pattern is None, then wordlist is used instead. 
      Keys and values from ext['a'], ext['d'], or ext['c'] respectively are merged into 
      the DecoratedWord output for added, deleted, or changed texts (respectivly).
+     mark_ops defines which diff operations are marked.
   """
   fontinfo = xml2fontinfo(dom, last_page)
 
+  ops = {}
+  for op in mark_ops.split(','):
+    ops[op[0].lower()] = 1
+
   def catwords(dw, idx1, idx2):
     text = " ".join(map(lambda x: x[0], dw[idx1:idx2]))
-    start = "p%s%s" % (dw[idx1][3].get('p','?'),dw[idx1][3].get('o',''))
+    start = "p%s%s" % (dw[idx1][3].get('p','?'),dw[idx1][3].get('l',''))
     return [text,start]
 
   p_rect_dict = {}   # indexed by page numbers, then lists of marks
@@ -474,16 +532,29 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
     s = SequenceMatcher(None, wordlist, wl_new, autojunk=False)
     for tag, i1, i2, j1, j2 in s.get_opcodes():
       if tag == "equal":
-        continue
+        if (ops.has_key('e')):
+          attr = ext['e'].copy()
+          # no need to put the old text into attr['o'], it is unchanged.
+        else:
+          continue
       elif tag == "replace":
-        attr = ext['c'].copy()
-        attr['o'] = catwords(wordlist, i1, i2)
+        if (ops.has_key('c')):
+          attr = ext['c'].copy()
+          attr['o'] = catwords(wordlist, i1, i2)
+        else:
+          continue
       elif tag == "delete":
-        attr = ext['d'].copy()
-        attr['o'] = catwords(wordlist, i1, i2)
-        j2 = j1 + 1     # so that the create_mark loop below executes once.
+        if (ops.has_key('d')):
+          attr = ext['d'].copy()
+          attr['o'] = catwords(wordlist, i1, i2)
+          j2 = j1 + 1     # so that the create_mark loop below executes once.
+        else:
+          continue
       elif tag == "insert":
-        attr = ext['a'].copy()
+        if (ops.has_key('a')):
+          attr = ext['a'].copy()
+        else:
+          continue
       else:
         print "SequenceMatcher returned unknown tag: %s" % tag
         continue
@@ -541,7 +612,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
             p_rect.append(create_mark(text,offset,l[i+1], 
               p_finfo[e.attrib['font']]['font'], 
               e.attrib['left'], e.attrib['top'], 
-              e.attrib['width'],e.attrib['height'], ext['m']))
+              e.attrib['width'],e.attrib['height'], ext['e']))
     
             offset += l[i+1]
           i += 2
