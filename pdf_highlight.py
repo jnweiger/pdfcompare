@@ -78,7 +78,7 @@ sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 # FONT_METRICS['Helvetica'][1]['W']
 #  944
 
-def paint_page_marks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.005, min_w=0.01, ext_w=0.05, anno=True):
+def paint_page_marks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.007, min_w=0.01, ext_w=0.05, anno=True):
   # cb_x=0.98 changebar on right margin
   # cb_x=0.02 changebar on left margin
   # min_w=0.05: each mark is min 5% of the page width wide. If not we add extenders.
@@ -126,6 +126,7 @@ def paint_page_marks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.005, m
   if debug: canvas.setFont('Helvetica',16)
   for m in marks['rect']:
     canvas.setFillColor(Color(m['c'][0],m['c'][1],m['c'][2], alpha=trans))
+    canvas.setStrokeColor(Color(m['c'][0],m['c'][1],m['c'][2], alpha=0.5*trans))
     # m = {'h': 23, 'c': [1,0,1], 't': 'Popular', 'w': 76.56716417910448, 'x': 221.0, 'y': 299}
     (x,y,w,h) = (m['x'], m['y'], m['w'], m['h'])
     if w < min_w:
@@ -146,7 +147,7 @@ def paint_page_marks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.005, m
         anno_popup(canvas, x2c(x),y2c(y),    w2c(w),h2c(h*1.4), m)
 
     # change bar
-    canvas.rect(x2c(cb_x),  y2c(y),w2c(cb_w),  h2c(h*1.4), fill=1, stroke=0)
+    canvas.rect(x2c(cb_x),  y2c(y),w2c(cb_w),  h2c(h*1.4), fill=1, stroke=1)
     if debug:
       canvas.drawString(x2c(x),y2c(y),'.(%d,%d)%s(%d,%d)' % (x2c(x),y2c(y),m['t'],x,y))
       pprint(m)
