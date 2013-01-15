@@ -329,7 +329,7 @@ def main():
   parser.def_sea_col = ['pink', [1,0,1]]
   parser.def_add_col = ['green',  [0.3,1,0.3]]
   parser.def_del_col = ['red',    [1,.3,.3]]
-  parser.def_chg_col = ['yellow', [.8,.8,0]]
+  parser.def_chg_col = ['yellow', [.9,.8,0]]
   parser.def_output = 'output.pdf'
   parser.def_mark= 'A,D,C'
   parser.add_argument("-o", "--output", metavar="OUTFILE", default=parser.def_output,
