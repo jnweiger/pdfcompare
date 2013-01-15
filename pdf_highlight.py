@@ -16,7 +16,11 @@
 # 2013-01-13, V0.4 jw - added class DecoratedWord
 #                     - option --compare works!
 # 2013-01-14, V0.5 jw - added xmlfile2wordlist, textfile2wordlist. fixed -e
-#                     - added option --mark
+#                     - added option --mark A,D,C
+# 2013-01-15, V0.6 jw - added anno_popup() and friends. Horrible hack.
+#                     - Added option --no-anno
+#                     - With -c: added line counting to xml input
+#                       top/center/bottom indicator for pdf.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -47,7 +51,7 @@
 #    sequences of characters within similar (near-matching) lines."
 
 
-__VERSION__ = '0.5'
+__VERSION__ = '0.6'
 
 from cStringIO import StringIO
 from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
@@ -74,7 +78,7 @@ sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 # FONT_METRICS['Helvetica'][1]['W']
 #  944
 
-def paint_page_marks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.005, min_w=0.01, ext_w=0.05):
+def paint_page_marks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.005, min_w=0.01, ext_w=0.05, anno=True):
   # cb_x=0.98 changebar on right margin
   # cb_x=0.02 changebar on left margin
   # min_w=0.05: each mark is min 5% of the page width wide. If not we add extenders.
@@ -90,6 +94,22 @@ def paint_page_marks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.005, m
     return (0.0+float(mediabox[3])-y*float(mediabox[3])/marks['h'])
   def h2c(h):
     return (0.0+h*float(mediabox[3])/marks['h'])
+
+  def anno_popup(canv, x,y, w,h, mark):
+    # We misuse linkURL() as this is the only annotation, that a) can be written with reportlab() and b)
+    # works both in acroread and ocular. HACK: For acroread, we include .: at the beginning, this prevents
+    # file://full_path expansion on strings that do not look like urls.
+    text = mark.get('t', '.') + ':'
+    if mark.has_key('o'):
+      if type(mark['o']) == list:
+        text += mark['o'][1]+': '+ mark['o'][0]
+      else:
+        text += ' '+mark['o']
+    # need ascii here. anything else triggers
+    # UnicodeDecodeError: 'utf16' codec can't decode bytes in position 5484-5485: illegal UTF-16 surrogate
+    # from File "/usr/lib/python2.7/site-packages/pyPdf/generic.py", line 248, in createStringObject
+    text = text.encode('ascii', errors='replace')
+    canv.linkURL(text, (x, y, x+w, y+h), relative=0) # , Border="[ 1 1 1 ]")
   
   cb_x = (cb_x-0.5*cb_w) * marks['w']     # relative to pdf page width 
   cb_w = cb_w            * marks['w']     # relative to pdf page width 
@@ -114,12 +134,16 @@ def paint_page_marks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.005, m
       canvas.rect(x2c(x-ext_w),y2c(y-1.2*h), w2c(w+2*ext_w),h2c(0.2*h), fill=1, stroke=0)
       x = x - (0.5 * (min_w-w))
       canvas.rect(x2c(x),y2c(y),w2c(min_w),h2c(h*1.2), fill=1, stroke=0)
+      if anno:
+        anno_popup(canvas, x2c(x),y2c(y),    w2c(min_w),h2c(h*1.4), m)
     else:
       # multiply height h with 1.4 to add some top padding, similar
       # to the bottom padding that is automatically added
       # due to descenders extending across the font baseline.
       # 1.2 is often not enough to look symmetric.
       canvas.rect(x2c(x),y2c(y),    w2c(w),h2c(h*1.4), fill=1, stroke=0)
+      if anno:
+        anno_popup(canvas, x2c(x),y2c(y),    w2c(w),h2c(h*1.4), m)
 
     # change bar
     canvas.rect(x2c(cb_x),  y2c(y),w2c(cb_w),  h2c(h*1.4), fill=1, stroke=0)
@@ -159,12 +183,33 @@ def xmlfile2wordlist(fname):
   """ works well with xml from pdftohtml -xml.
       """
   wl = []
-  tree= ET.parse(fname)
-  dom = tree.getroot()
-  for e in dom.iter():
-    t = "".join(e.itertext())
-    for w in t.split():
-      wl.append(DecoratedWord([w,None,None,{}]))
+  elementcount = 0
+
+  #tree= ET.parse(fname)
+  #dom = tree.getroot()
+  #for elem in dom.iter():
+
+  ## line number counting idea from 
+  ## http://bytes.com/topic/python/answers/535191-elementtree-line-numbers-iterparse
+  class FileWrapperLineNo:
+    def __init__(self, source):
+      self.source = source
+      self.lineno = 0
+    def read(self, bytes):
+      s = self.source.readline()
+      self.lineno += 1
+      return s
+
+  f = FileWrapperLineNo(open(fname))
+  for event, elem in ET.iterparse(f, events=("start", "end")):
+    if event == "start":
+      elementcount += 1
+      ## we could grab all from the root element, 
+      ## but we want to count elements.
+      # t = "".join(elem.itertext())
+      if elem.text:
+        for w in elem.text.split():
+          wl.append(DecoratedWord([w,None,None,{'e':elementcount, 'l':f.lineno}]))
   return wl
 
 def textfile2wordlist(fname):
@@ -230,6 +275,7 @@ def xml2wordlist(dom, last_page=None):
       if p_nr >= int(last_page):
         break
     p_nr += 1
+    p_h = float(p.attrib['height'])
 
     for e in p.findall('text'):
       # <text font="0" height="19" left="54" top="107" width="87"><b>Features</b></text>
@@ -240,7 +286,12 @@ def xml2wordlist(dom, last_page=None):
       f=e.attrib['font']
       text = ''
       for t in e.itertext(): text += t
-      wl += textline2wordlist(text, {'p':p_nr, 'x':x, 'y':y, 'w':w, 'h':h, 'f':f})
+
+      ## crude top,center,bottom location
+      if   float(y) > 0.66*p_h: l = 'b'
+      elif float(y) > 0.33*p_h: l = 'c'
+      else:                     l = 't'
+      wl += textline2wordlist(text, {'p':p_nr, 'l':l, 'x':x, 'y':y, 'w':w, 'h':h, 'f':f})
     #pprint(wl)
   print "xml2wordlist: %d pages" % p_nr
   return wl
@@ -270,7 +321,7 @@ def xml2fontinfo(dom, last_page=None):
 
 
 def main():
-  debug = True
+  debug = False
   parser = ArgumentParser(epilog="version: "+__VERSION__, description="highlight words in a PDF file.")
   parser.def_trans = 0.3
   parser.def_decrypt_key = ''
@@ -279,7 +330,7 @@ def main():
   parser.def_del_col = ['red',    [1,.3,.3]]
   parser.def_chg_col = ['yellow', [.8,.8,0]]
   parser.def_output = 'output.pdf'
-  parser.def_mark= 'I,D,C'
+  parser.def_mark= 'A,D,C'
   parser.add_argument("-o", "--output", metavar="OUTFILE", default=parser.def_output,
                       help="write output to FILE; default: "+parser.def_output)
   parser.add_argument("-s", "--search", metavar="WORD_REGEXP", 
@@ -299,6 +350,9 @@ def main():
                       default: reproduce all pages from INFILE in OUTFILE")
   parser.add_argument("-i", "--nocase", default=False, action="store_true",
                       help="make -s case insensitive; default: case sensitive")
+  parser.add_argument("-A", "--no-anno", default=False, action="store_true",
+                      help="This option prevents adding Annotations to the output PDF file. \
+                      Default: annotate each Mark with 'operation:position: orignal_text'")
   parser.add_argument("-L", "--last-page", metavar="LAST_PAGE",
                       help="limit pages processed; this counts pages, it does not use document \
                       page numbers; default: all pages")
@@ -326,7 +380,7 @@ def main():
     if re.search('\.pdf$', args.compare_text, re.I):
       dom2 = pdf2xml(parser, args.compare_text, args.decrypt_key)
       wordlist2 = xml2wordlist(dom2, args.last_page)
-    if re.search('\.xml$', args.compare_text, re.I):
+    elif re.search('\.xml$', args.compare_text, re.I):
       wordlist2 = xmlfile2wordlist(args.compare_text)
     else:
       # assuming a plain text document
@@ -409,17 +463,34 @@ def main():
     ## merge this string ontop of the original page.
     pdf_str = StringIO()
     c = canvas.Canvas(pdf_str, pagesize=(box[2],box[3]))
-    paint_page_marks(c, box, page_marks[i], trans=args.transparency)
+    paint_page_marks(c, box, page_marks[i], trans=args.transparency, anno=not args.no_anno)
+
+    # c.textAnnotation('Here is a Note', Rect=[34,0,0,615], addtopage=1,Author='Test Opacity=0.1',Color=[0.7,0.8,1],Type='/Comment',Opacity=0.1)
+    # c.linkURL(".: Here is a Note", (30,10,200,20), relative=0, Border="[ 1 1 1 ]")
 
     c.save()
     pdf_str.seek(0,0)
+    if debug:
+      file("canvas_%d.pdf"%i, 'w').write(pdf_str.getvalue())
+      pdf_str.seek(0,0)
     input2 = PdfFileReader(pdf_str)
     highlight_page = input2.getPage(0)
-    if 0:
-      ## can paint below document.
-      ## this looks better, as the fonts are true black, 
+    if 1:
+      ## We can paint below or above the document.
+      ## Below looks better, as the fonts are true black,
       ## but fails completely, if white background is drawn.
+      ## Thus the highlight_page must be on top.
+      ##
+      ## mergePage() fails to merge Annotations. Therefore, we
+      ## put one copy of the highlight_page at the bottom, then
+      ## merge the content page ontop, then merge another copy
+      ## of the highlight page ontop.
+      ##
+      highlight_copy = highlight_page.createBlankPage(None, box[2], box[3])
+      highlight_copy.mergePage(highlight_page)
+
       highlight_page.mergePage(page)
+      highlight_page.mergePage(highlight_copy)
       output.addPage(highlight_page)
     else:
       page.mergePage(highlight_page)
@@ -522,8 +593,16 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
 
   def catwords(dw, idx1, idx2):
     text = " ".join(map(lambda x: x[0], dw[idx1:idx2]))
-    start = "p%s%s" % (dw[idx1][3].get('p','?'),dw[idx1][3].get('l',''))
-    return [text,start]
+    if dw[idx1][3].has_key('p'):
+      page_or_elem = 'p'+str(dw[idx1][3]['p'])
+    elif dw[idx1][3].has_key('e'):
+      page_or_elem = 'e'+str(dw[idx1][3]['e'])
+    else:
+      page_or_elem = '#'
+    loc_or_lineno = dw[idx1][3].get('l','')
+    if type(loc_or_lineno) == int:
+      loc_or_lineno = 'l'+str(loc_or_lineno)
+    return [text, page_or_elem+loc_or_lineno]
 
   p_rect_dict = {}   # indexed by page numbers, then lists of marks
   if wordlist:
@@ -535,12 +614,14 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         if (ops.has_key('e')):
           attr = ext['e'].copy()
           # no need to put the old text into attr['o'], it is unchanged.
+          attr['t'] = 'equ'
         else:
           continue
       elif tag == "replace":
         if (ops.has_key('c')):
           attr = ext['c'].copy()
           attr['o'] = catwords(wordlist, i1, i2)
+          attr['t'] = 'chg'
         else:
           continue
       elif tag == "delete":
@@ -548,17 +629,18 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
           attr = ext['d'].copy()
           attr['o'] = catwords(wordlist, i1, i2)
           j2 = j1 + 1     # so that the create_mark loop below executes once.
+          attr['t'] = 'del'
         else:
           continue
       elif tag == "insert":
         if (ops.has_key('a')):
           attr = ext['a'].copy()
+          attr['t'] = 'add'
         else:
           continue
       else:
         print "SequenceMatcher returned unknown tag: %s" % tag
         continue
-      attr['t'] = tag
       # print "len(wl_new)=%d, j in [%d:%d] %s" % (len(wl_new), j1, j2,tag)
       for j in range(j1,j2):
         if j >= len(wl_new):    # this happens with autojunk=False!
