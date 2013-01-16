@@ -8,3 +8,4 @@
 
 * popups are all in one line in okular. Need to provide linebreaks manually, sigh.
 
+* catch file open errors, before ET complains about 0 elements.
