@@ -5,3 +5,6 @@
 * Navigation from changebar to changebar, if there are many unchanged pages to jump over.
 
 * test on fossy: import argparse complains about already imported.
+
+* popups are all in one line in okular. Need to provide linebreaks manually, sigh.
+
