@@ -21,6 +21,9 @@
 #                     - Added option --no-anno
 #                     - With -c: added line counting to xml input
 #                       top/center/bottom indicator for pdf.
+# 2013-01-16, V0.7 jw - minor bugfixing.
+#                       changemarks by: page_watermark() added.
+#                       /Creator /Producer /ModDate writing.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -51,14 +54,14 @@
 #    sequences of characters within similar (near-matching) lines."
 
 
-__VERSION__ = '0.6'
+__VERSION__ = '0.7'
 
 from cStringIO import StringIO
 from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import Color
 
-import re
+import re, time
 from pprint import pprint
 import xml.etree.cElementTree as ET
 import sys, os, subprocess
@@ -73,12 +76,13 @@ import codecs
 
 # allow debug printing into less:
 sys.stdout = codecs.getwriter('utf8')(sys.stdout)
+debug = False
 
 # from pdfminer.fontmetrics import FONT_METRICS
 # FONT_METRICS['Helvetica'][1]['W']
 #  944
 
-def paint_page_marks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.007, min_w=0.01, ext_w=0.05, anno=True):
+def page_changemarks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.007, min_w=0.01, ext_w=0.05, anno=True):
   # cb_x=0.98 changebar on right margin
   # cb_x=0.02 changebar on left margin
   # min_w=0.05: each mark is min 5% of the page width wide. If not we add extenders.
@@ -116,7 +120,6 @@ def paint_page_marks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.007, m
   min_w = min_w          * float(mediabox[2])    # relative to xml page width 
   ext_w = ext_w          * float(mediabox[2])    # extenders, if needed
 
-  debug=False
   canvas.setFont('Helvetica',5)
   ### a testing grid
   if debug:
@@ -152,6 +155,18 @@ def paint_page_marks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.007, m
       canvas.drawString(x2c(x),y2c(y),'.(%d,%d)%s(%d,%d)' % (x2c(x),y2c(y),m['t'],x,y))
       pprint(m)
       return      # shortcut, only the first word of the page
+
+def page_watermark(canvas, box, argv, color=[1,0,1], trans=0.5):
+  canvas.setFont('Helvetica',5)
+  av = []
+  for arg in argv:
+    m=re.match("\S+(/.*?)$", arg)
+    if m: arg = "..."+m.group(1)
+    av.append(arg)
+  text = "Changemarks by: " + " ".join(av)
+  canvas.setFillColor(Color(color[0],color[1],color[2], alpha=trans))
+  canvas.drawString(15,10,text)
+
 
 def pdf2xml(parser, infile, key=''):
   """ read a pdf file with pdftohtml and parse the resulting xml into a dom tree
@@ -322,7 +337,6 @@ def xml2fontinfo(dom, last_page=None):
 
 
 def main():
-  debug = False
   parser = ArgumentParser(epilog="version: "+__VERSION__, description="highlight words in a PDF file.")
   parser.def_trans = 0.3
   parser.def_decrypt_key = ''
@@ -360,12 +374,19 @@ def main():
   parser.add_argument("-t", "--transparency", type=float, default=parser.def_trans, metavar="TRANSP", 
                       help="set transparency of the highlight; invisible: 0.0; full opaque: 1.0; \
                       default: " + str(parser.def_trans))
+  parser.add_argument("-D", "--debug", default=False, action="store_true",
+                      help="enable debugging. Prints more on stdout, dumps several *.xml or *.pdf files.")
+  parser.add_argument("-V", "--version", default=False, action="store_true",
+                      help="print the version number and exit")
   parser.add_argument("-C", "--search-color", default=parser.def_sea_col[1], nargs=3, metavar="N",
                       help="set color of the search highlight as an RGB triplet; default is %s: %s" 
                       % (parser.def_sea_col[0], ' '.join(map(lambda x: str(x), parser.def_sea_col[1])))
                       )
   parser.add_argument("infile", metavar="INFILE", help="the input filename")
   args = parser.parse_args()      # --help is automatic
+
+  if args.version: parser.exit(__VERSION__)
+  debug = args.debug
 
   ## TEST this, fix or disable: they should work well together:
   # if args.search and args.compare_text:
@@ -437,6 +458,18 @@ def main():
 
   try:
     di = input1.getDocumentInfo()
+
+    # update ModDate, Creator, DiffCmd
+    selfcmd = " ".join(sys.argv) + ' # V' + __VERSION__ + ' ' + time.ctime()
+    if not di.has_key('/Creator'):
+      di[Pdf.NameObject('/Creator')] = Pdf.createStringObject(selfcmd)
+    elif not di.has_key('/Producer'):
+      di[Pdf.NameObject('/Producer')] = Pdf.createStringObject(selfcmd)
+    di[Pdf.NameObject('/DiffCmd')] = Pdf.createStringObject(selfcmd)
+    di[Pdf.NameObject('/ModDate')] = Pdf.createStringObject(time.strftime("D:%Y%m%d%H%M%S"))
+    if debug:
+      print "DocumentInfo():"
+      pprint(di)
     output._objects.append(di)
   except Exception,e:
     print("WARNING: getDocumentInfo() failed: " + str(e) );
@@ -464,7 +497,8 @@ def main():
     ## merge this string ontop of the original page.
     pdf_str = StringIO()
     c = canvas.Canvas(pdf_str, pagesize=(box[2],box[3]))
-    paint_page_marks(c, box, page_marks[i], trans=args.transparency, anno=not args.no_anno)
+    page_watermark(c, box, sys.argv, color=args.search_color, trans=args.transparency)
+    page_changemarks(c, box, page_marks[i], trans=args.transparency, anno=not args.no_anno)
 
     # c.textAnnotation('Here is a Note', Rect=[34,0,0,615], addtopage=1,Author='Test Opacity=0.1',Color=[0.7,0.8,1],Type='/Comment',Opacity=0.1)
     # c.linkURL(".: Here is a Note", (30,10,200,20), relative=0, Border="[ 1 1 1 ]")
