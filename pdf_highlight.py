@@ -157,7 +157,7 @@ def pdf2xml(parser, infile, key=''):
   """ read a pdf file with pdftohtml and parse the resulting xml into a dom tree
       the first parameter, parser is only used for calling exit() with proper messages.
   """
-  pdftohtml_cmd = ["pdftohtml", "-i", "-nodrm", "-nomerge", "-stdout", "-xml"]
+  pdftohtml_cmd = ["pdftohtml", "-q", "-i", "-nodrm", "-nomerge", "-stdout", "-xml"]
   if len(key):
     pdftohtml_cmd += ["-upw", key]
   try:
