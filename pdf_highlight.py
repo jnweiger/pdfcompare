@@ -22,8 +22,11 @@
 #                     - With -c: added line counting to xml input
 #                       top/center/bottom indicator for pdf.
 # 2013-01-16, V0.7 jw - minor bugfixing.
-#                       changemarks by: page_watermark() added.
-#                       /Creator /Producer /ModDate writing.
+#                     - Added Changemarks by: page_watermark().
+#                     - /Creator /Producer /ModDate writing.
+# 2013-01-17, V0.8 jw - added opcodes_post_proc() to make replace operations 
+#                       more the human friendly.
+#                     - calling compressContentStreams() unless --no-compression
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -54,7 +57,7 @@
 #    sequences of characters within similar (near-matching) lines."
 
 
-__VERSION__ = '0.7'
+__VERSION__ = '0.8'
 
 from cStringIO import StringIO
 from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
@@ -65,7 +68,6 @@ import re, time
 from pprint import pprint
 import xml.etree.cElementTree as ET
 import sys, os, subprocess
-from optparse import OptionParser
 from argparse import ArgumentParser
 import pygame.font as PGF
 from difflib import SequenceMatcher
@@ -179,8 +181,6 @@ def pdf2xml(parser, infile, key=''):
     (to_child, from_child) = os.popen2(pdftohtml_cmd + [infile])
   except Exception,e:
     parser.exit("pdftohtml -xml failed: " + str(e))
-
-  # print from_child.readlines()
 
   try:
     dom = ET.parse(from_child)
@@ -329,6 +329,12 @@ def xml2fontinfo(dom, last_page=None):
       fsize = fspec.attrib.get('size', 12)
       f_id  = fspec.attrib.get('id')
       f_file = PGF.match_font(fname)
+      ######
+      # On openSUSE 12.1 Beta 1 (i586,fossy) the call to PGF.Font() triggers this warning:
+      # /usr/lib/python2.7/site-packages/pygame/pkgdata.py:27: UserWarning:
+      # Module argparse was already imported from
+      # /usr/lib/python2.7/argparse.pyc, but /usr/lib/python2.7/site-packages
+      # is being added
       f = PGF.Font(f_file, int(0.5+float(fsize)))
       p_finfo[f_id] = { 'name': fname, 'size':fsize, 'file': f_file, 'font':f }
     #pprint(p_finfo)
@@ -378,6 +384,8 @@ def main():
                       help="enable debugging. Prints more on stdout, dumps several *.xml or *.pdf files.")
   parser.add_argument("-V", "--version", default=False, action="store_true",
                       help="print the version number and exit")
+  parser.add_argument("-X", "--no-compression", default=False, action="store_true",
+                      help="write uncompressed PDF. Default: FlateEncode filter compression.")
   parser.add_argument("-C", "--search-color", default=parser.def_sea_col[1], nargs=3, metavar="N",
                       help="set color of the search highlight as an RGB triplet; default is %s: %s" 
                       % (parser.def_sea_col[0], ' '.join(map(lambda x: str(x), parser.def_sea_col[1])))
@@ -395,6 +403,8 @@ def main():
   if args.search is None and args.compare_text is None:
     parser.exit("Oops. Nothing to do. Specify either -s or -c")
 
+  if not os.access(args.infile, os.R_OK):
+    parser.exit("Cannot read input file: %s" % args.infile)
   dom1 = pdf2xml(parser, args.infile, args.decrypt_key)
   dom2 = None
   wordlist2 = None
@@ -526,9 +536,13 @@ def main():
 
       highlight_page.mergePage(page)
       highlight_page.mergePage(highlight_copy)
+      if not args.no_compression:
+        highlight_page.compressContentStreams()
       output.addPage(highlight_page)
     else:
       page.mergePage(highlight_page)
+      if not args.no_compression:
+        page.compressContentStreams()
       output.addPage(page)
     pages_written += 1
 
@@ -578,6 +592,7 @@ def create_mark(text,offset,length, font, t_x, t_y, t_w, t_h, ext={}):
   (xoff,width) = rendered_text_pos(text, offset, length,
                           font, float(t_x), float(t_w))
   #print "  xoff=%.1f, width=%.1f" % (xoff, width)
+
   mark = {'x':xoff, 'y':float(t_y)+float(t_h),
           'w':width, 'h':float(t_h), 't':text[offset:offset+length]}
   for k in ext:
@@ -607,7 +622,6 @@ def zap_letter_spacing(text):
   #print "zap_letter_spacing('%s') -> '%s'" % (text,t)
   return t
 
-
 def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, last_page=None, mark_ops="D,A,C"):
   """traverse the XML dom tree, (which is expected to come from pdf2html -xml)
      find all occurances of re_pattern on all pages, returning rect list for 
@@ -620,11 +634,28 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
      the DecoratedWord output for added, deleted, or changed texts (respectivly).
      mark_ops defines which diff operations are marked.
   """
-  fontinfo = xml2fontinfo(dom, last_page)
 
-  ops = {}
-  for op in mark_ops.split(','):
-    ops[op[0].lower()] = 1
+  ######
+  def markword(r_dict, wl, idx, tag, attr, fontinfo):
+    w = wl[idx]
+    p_nr = w[3].get('p','?')
+    l = len(w[0])
+    if tag == 'delete': 
+      # l=0 special case:
+      # very small marker length triggers extenders.
+      # FIXME: decrement idx if idx > 0.
+      #  if decremented, place the marker at the end, not beginning.
+      #  need to implement l=-1 handling inside create_mark().
+      # if idx > 0:
+      #   w = wl[idx-1]
+      #   l = -1
+      # else:
+      l = 0 
+    mark = create_mark(w[1], w[2], l,
+          fontinfo[p_nr][w[3]['f']]['font'], 
+          w[3]['x'],w[3]['y'],w[3]['w'],w[3]['h'], attr)
+    if not r_dict.has_key(p_nr): r_dict[p_nr] = []
+    r_dict[p_nr].append(mark)
 
   def catwords(dw, idx1, idx2):
     text = " ".join(map(lambda x: x[0], dw[idx1:idx2]))
@@ -638,13 +669,48 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
     if type(loc_or_lineno) == int:
       loc_or_lineno = 'l'+str(loc_or_lineno)
     return [text, page_or_elem+loc_or_lineno]
+  ######
+
+  fontinfo = xml2fontinfo(dom, last_page)
+
+  ops = {}
+  for op in mark_ops.split(','):
+    ops[op[0].lower()] = 1
 
   p_rect_dict = {}   # indexed by page numbers, then lists of marks
   if wordlist:
     # generate our wordlist too, so that we can diff against the given wordlist.
     wl_new = xml2wordlist(dom, last_page)
     s = SequenceMatcher(None, wordlist, wl_new, autojunk=False)
-    for tag, i1, i2, j1, j2 in s.get_opcodes():
+
+    def opcodes_post_proc(iter_list):
+      ## Often small pieces are replaced by big pieces or vice versa.
+      ## For a concept of wordlist we want to replace n words with exactly n words.
+      ## Excessive or missing words should be considered an adjacent insert or delete.
+      ## get_opcodes() would never do that, as it will always produce one 'equal' beween 
+      ## each other operation.
+      ##
+      ## I now officially love generators in python.
+      ##
+      for tag, i1, i2, j1, j2 in iter_list:
+        if tag == "replace":
+          i_len = i2-i1
+          j_len = j2-j1
+          if i_len < j_len:
+            # print "getting longer by %d" % (j_len-i_len)
+            yield ('replace',  i1,i2, j1,j1+i_len)
+            yield ('insert',   i2,i2, j1+i_len,j2)
+          elif i_len > j_len:
+            # print "getting shorter by %d" % (i_len-j_len)
+            yield ('replace', i1,i1+j_len, j1, j2)
+            yield ('delete',  i1+j_len,i2, j2, j2)
+          else:
+            # same length
+            yield (tag, i1, i2, j1, j2)
+        else:
+          yield (tag, i1, i2, j1, j2)
+
+    for tag, i1, i2, j1, j2 in opcodes_post_proc(s.get_opcodes()):
       if tag == "equal":
         if (ops.has_key('e')):
           attr = ext['e'].copy()
@@ -663,8 +729,8 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         if (ops.has_key('d')):
           attr = ext['d'].copy()
           attr['o'] = catwords(wordlist, i1, i2)
-          j2 = j1 + 1     # so that the create_mark loop below executes once.
           attr['t'] = 'del'
+          j2 = j1 + 1     # so that the create_mark loop below executes once.
         else:
           continue
       elif tag == "insert":
@@ -681,15 +747,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         if j >= len(wl_new):    # this happens with autojunk=False!
           print "end of wordlist reached: %d" % j
           break
-        w = wl_new[j]
-        p_nr = w[3].get('p','?')
-        l = len(w[0])
-        if tag == 'delete': l = 0 # very small marker length triggers extenders.
-        mark = create_mark(w[1], w[2], l,
-                fontinfo[p_nr][w[3]['f']]['font'], 
-                w[3]['x'],w[3]['y'],w[3]['w'],w[3]['h'], attr)
-        if not p_rect_dict.has_key(p_nr): p_rect_dict[p_nr] = []
-        p_rect_dict[p_nr].append(mark)
+        markword(p_rect_dict, wl_new, j, tag, attr, fontinfo)
 
   # End of wordlist code.
   # We have now p_rect_dict preloaded with the wordlist marks or empty.
