@@ -27,6 +27,8 @@
 # 2013-01-17, V0.8 jw - added opcodes_post_proc() to make replace operations 
 #                       more the human friendly.
 #                     - calling compressContentStreams() unless --no-compression
+#                     - higher --transparency is now more transparent, not less.
+#                     - delete markers at end of previous text, not start of next.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -38,24 +40,10 @@
 #
 # Feature request:
 # - poppler-tools:/usr/bin/pdftohtml -xml should report a rotation angle, 
-#   if text is not left-to-right.
+#   if text is not left-to-right. And it should report spacing adjustements 
+#   within a string.
 #
-# TODO:
-# - add baloon popups containing deleted or replaced text!
-# - if pagebreaks are within deleted text, point this out in the baloon popup.
-# - SequenceMatcher() likes to announce long stretches of text as replaced.
-#   Can we tune this, to show more add and delete?
-#   If the replaced text has a low correlation ratio, 
-#   we should change the replace mark into a combination of delete and add.
-# - one letter changes always become word changes.
-#   Either run in single character mode. Or try to trim the replaced text for 
-#   common suffix or common prefix.
-#
-# - pydoc difflib.SequenceMatcher has this:
-#   "See the Differ class for a fancy human-friendly file differencer, which
-#    uses SequenceMatcher both to compare sequences of lines, and to compare
-#    sequences of characters within similar (near-matching) lines."
-
+# TODOs: see exra file TODO.md 
 
 __VERSION__ = '0.8'
 
@@ -577,6 +565,7 @@ def rendered_text_pos(string1, char_start, char_count, font=None, xoff=0, width=
   pre = string1[:char_start]
   str = string1[char_start:char_start+char_count]
   suf = string1[char_start+char_count:]
+
   pre_w = rendered_text_width(pre, font)
   str_w = rendered_text_width(str, font)
   suf_w = rendered_text_width(suf, font)
@@ -591,6 +580,7 @@ def rendered_text_pos(string1, char_start, char_count, font=None, xoff=0, width=
 
 def create_mark(text,offset,length, font, t_x, t_y, t_w, t_h, ext={}):
   #print "word: at %d is '%s'" % (offset, text[offset:offset+length]),
+    
   (xoff,width) = rendered_text_pos(text, offset, length,
                           font, float(t_x), float(t_w))
   #print "  xoff=%.1f, width=%.1f" % (xoff, width)
@@ -642,18 +632,20 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
     w = wl[idx]
     p_nr = w[3].get('p','?')
     l = len(w[0])
+    off = w[2]
     if tag == 'delete': 
       # l=0 special case:
       # very small marker length triggers extenders.
-      # FIXME: decrement idx if idx > 0.
-      #  if decremented, place the marker at the end, not beginning.
-      #  need to implement l=-1 handling inside create_mark().
-      # if idx > 0:
-      #   w = wl[idx-1]
-      #   l = -1
-      # else:
+      # decrement idx if idx > 0.
+      #  if decrementable (idx > 1), place the marker at the end of the previous word, 
+      #  not at the beginning of this word.
+      if idx > 0:
+         w = wl[idx-1]
+         p_nr = w[3].get('p','?')
+         off = w[2]+len(w[0])
       l = 0 
-    mark = create_mark(w[1], w[2], l,
+
+    mark = create_mark(w[1], off, l,
           fontinfo[p_nr][w[3]['f']]['font'], 
           w[3]['x'],w[3]['y'],w[3]['w'],w[3]['h'], attr)
     if not r_dict.has_key(p_nr): r_dict[p_nr] = []

@@ -14,15 +14,15 @@ import scipy as sp
 from scipy.misc import imread
 from scipy.signal.signaltools import correlate2d as c2d
 
-if len(sys.argv) < 3:
-  print """Usage: imgcmp.py FILE1 FILE2 N.NN
+if len(sys.argv) < 4:
+  print """Usage: %s FILE1 FILE2 N.NN
 
         FILE1,FILE2 can be in JPEG, PNG, or PDF format.
         N.NN should be a small floating point number. It represents 
         the allowed difference in the image metrics.
         correlate2d from scipy.signal.signaltools is used to compute 
         the metrics.
-  """
+  """ % sys.argv[0]
   sys.exit(0)
 
 
@@ -40,7 +40,10 @@ def load_img(fname):
      # convert to grey-scale using W3C luminance calc
      ## pprint([data])
      ## ValueError: matrices are not aligned, if alpha channel...
-     data = sp.inner(data, [299, 587, 114]) / 1000.0
+     lum = [299, 587, 114]
+     if len(data[0][0]) > 3:
+       lum.append(0)
+     data = sp.inner(data, lum) / 1000.0
      # normalize per http://en.wikipedia.org/wiki/Cross-correlation
      return (data - data.mean()) / data.std()
 
