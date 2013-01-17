@@ -393,6 +393,8 @@ def main():
   parser.add_argument("infile", metavar="INFILE", help="the input filename")
   args = parser.parse_args()      # --help is automatic
 
+  args.transparency = 1 - args.transparency     # it is needed reversed.
+
   if args.version: parser.exit(__VERSION__)
   debug = args.debug
 
