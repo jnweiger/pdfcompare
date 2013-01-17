@@ -1,3 +1,19 @@
+TODO
+
+* testsuite
+  - run pdfcompare --version.
+  - a 1:1 comparison is not possible, as e.g. poppler-0.18 and poppler-0.20
+    produce differences in the exact coordinates used.
+  - maybe prepare a test script that allows numbers to be off by some 
+    percentage, but wants everything else precise.
+  - generate several output.pdf, convert via ImageMagick to png, 
+    make a fuzzy comparison against templates with python-cv, pHash, etc...
+    http://stackoverflow.com/questions/1819124/image-comparison-algorithm suggests
+    Scipy.
+
+  
+* ghostscript complains about currupt XREF table.
+
 * nicer +++---~~~== git style diagnostics per page, rather than saying '87 hits'.
 
 * place delete marker at last text end position, rather than next text start position.
