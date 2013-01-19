@@ -1,8 +1,14 @@
-* nicer +++---~~~== git style diagnostics per page, rather than saying '87 hits'.
+TODO
 
-* place delete marker at last text end position, rather than next text start position.
-  This is tricky, as we only care for markers, not unmarked text.
-  (l=-1 code implementation started around create_mark())
+* testsuite
+  - maybe prepare a test script that allows numbers to be off by some 
+    percentage, but wants everything else precise.
+
+* if pagebreaks are within deleted text, point this out in the baloon popup.
+  
+* one letter changes always become word changes.
+  Either run in single character mode. Or try to trim the replaced text for 
+  common suffix or common prefix.
 
 * Normalize nonbreaking spaces to spaces.
   This is important when e.g. markdown source has a 0x20 space, but rendered
@@ -21,3 +27,18 @@ DONE:
 
 * perform only same-length-replace. All other replace-ops should be replace+insert
   or replace+delete.
+
+* place delete marker at last text end position, rather than next text start position.
+  This is a tricky, implementation in markword().
+
+* testsuite
+  - a 1:1 comparison is not possible, as e.g. poppler-0.18 and poppler-0.20
+    produce differences in the exact coordinates used.
+  - make a fuzzy comparison against templates with python-cv, pHash, etc...
+    http://stackoverflow.com/questions/1819124/image-comparison-algorithm suggests
+    Scipy.  imgcmp.py does this.
+  - generate several output.pdf, convert via ImageMagick to png, 
+  - run pdfcompare --version.
+
+* nicer +++---~~~== git style diagnostics per page, rather than saying '87 hits'.
+
