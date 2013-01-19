@@ -701,11 +701,6 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         llen += 1
       text += w[0]
       llen += len(w[0])
-    p_set = set()
-    for p in map(lambda x: x[3].get('p',''), dw[idx1:idx2]):
-      p_set.add(p)
-    # if len(p_set) > 1:
-    #   pprint(['catwords', text, p_set])
     if dw[idx1][3].has_key('p'):
       page_or_elem = 'p'+str(dw[idx1][3]['p'])
     elif dw[idx1][3].has_key('e'):
