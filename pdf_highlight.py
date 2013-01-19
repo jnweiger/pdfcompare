@@ -520,27 +520,22 @@ def main():
       pdf_str.seek(0,0)
     input2 = PdfFileReader(pdf_str)
     highlight_page = input2.getPage(0)
-    if 1:
+    if 0:
       ## We can paint below or above the document.
       ## Below looks better, as the fonts are true black,
       ## but fails completely, if white background is drawn.
       ## Thus the highlight_page must be on top.
       ##
-      ## mergePage() fails to merge Annotations. Therefore, we
-      ## put one copy of the highlight_page at the bottom, then
-      ## merge the content page ontop, then merge another copy
-      ## of the highlight page ontop.
-      ##
-      highlight_copy = highlight_page.createBlankPage(None, box[2], box[3])
-      highlight_copy.mergePage(highlight_page)
-
       highlight_page.mergePage(page)
-      highlight_page.mergePage(highlight_copy)
       if not args.no_compression:
         highlight_page.compressContentStreams()
       output.addPage(highlight_page)
     else:
       page.mergePage(highlight_page)
+      if highlight_page.has_key("/Annots"):
+        if page.has_key("/Annots"):
+          print "Warning: Original Annotations overwritten. mergePage() cannot merge them."
+        page[Pdf.NameObject("/Annots")] = highlight_page["/Annots"]
       if not args.no_compression:
         page.compressContentStreams()
       output.addPage(page)
