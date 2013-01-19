@@ -4,8 +4,6 @@ TODO
   - maybe prepare a test script that allows numbers to be off by some 
     percentage, but wants everything else precise.
 
-* if pagebreaks are within deleted text, point this out in the baloon popup.
-  
 * one letter changes always become word changes.
   Either run in single character mode. Or try to trim the replaced text for 
   common suffix or common prefix.
@@ -42,3 +40,5 @@ DONE:
 
 * nicer +++---~~~== git style diagnostics per page, rather than saying '87 hits'.
 
+* if pagebreaks are within deleted text, point this out in the baloon popup.
+  

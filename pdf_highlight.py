@@ -33,6 +33,7 @@
 #                     - page break indicators in catwords() added
 #                     - new option -F -first-page added.
 #                     - line wrapping for okular popups, if over 60 chars.
+#                     - added page break markers in annotations.
 #                     - smaller files: we merge once, and help ourselves with /Annots.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
@@ -676,9 +677,16 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
     text = ""
     llen=0
     ypos=None
+    p_nr=None
     for w in dw[idx1:idx2]:
+      if p_nr is None:
+        p_nr = w[3]['p']
       if ypos is None:
         ypos = w[3]['y']
+      if p_nr != w[3]['p']:
+        p_nr = w[3]['p']
+        text += " <br> --]page:%d[--" % int(p_nr)
+        llen=1000 # fallthrough
       if llen > 100 or ypos != w[3]['y']:
         # silly hack for okular. It does not do line wrapping on its own.
         # evince and acroread do it. Okular wraps the line, when I say <br>, 
