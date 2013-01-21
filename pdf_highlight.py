@@ -156,7 +156,7 @@ def page_watermark(canvas, box, argv, color=[1,0,1], trans=0.5):
   canvas.setFont('Helvetica',5)
   av = []
   for arg in argv:
-    m=re.match("\S+(/.*?)$", arg)
+    m=re.match("\S\S\S\S+(/.*?)$", arg)
     if m: arg = "..."+m.group(1)
     av.append(arg)
   text = "Changemarks by: " + " ".join(av)
