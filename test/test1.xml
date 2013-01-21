@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE article PUBLIC "-//OASIS//DTD DocBook XML V4.4//EN"
+                         "http://www.docbook.org/xml/4.4/docbookx.dtd">
+<article>
+	<title>Lorem Ipsum</title>
+
+	<abstract>
+		<para>Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor
+			incididunt ut labore et dolore magna aliqua.</para>
+	</abstract>
+	<sect1>
+		<title>Excepteur sint occaecat</title>
+		<variablelist>
+			<varlistentry>
+				<term/>
+				<listitem>
+					<para>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
+						aliquip ex ea commodo consequat.</para>
+				</listitem>
+			</varlistentry>
+			<varlistentry>
+				<term/>
+				<listitem>
+					<para>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum
+						dolore eu fugiat nulla pariatur.</para>
+				</listitem>
+			</varlistentry>
+
+		</variablelist>
+	</sect1>
+</article>

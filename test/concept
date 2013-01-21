@@ -1,0 +1,10 @@
+-shell scripte zum testen
+
+1. gibt es eine ausgeabe bei --help
+-ist version in --help == im specfile
+
+2. testpdfs vergleichen und chekcen ob das ergebnis gleich ist
+pdf -> pdf
+ascii-> pdf
+xml->pdf
+-s option

@@ -6,9 +6,6 @@
 # Dependencies:
 # sudo zypper in python-scipy
 # sudo zypper in ImageMagick
-#
-# See also python-pHash, and python-opencv
-# http://stackoverflow.com/questions/13379909/compare-similarity-of-images-using-opencv-with-python
 
 import sys, os, re, tempfile
 from pprint import pprint

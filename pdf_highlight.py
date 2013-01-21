@@ -35,6 +35,9 @@
 #                     - line wrapping for okular popups, if over 60 chars.
 #                     - added page break markers in annotations.
 #                     - smaller files: we merge once, and help ourselves with /Annots.
+# 2013-01-21, V1.0 jw - added option --features anno,highight,changebar
+#                     - removed option --no-anno in favour of option --features.
+#                     - improved option --search-colors to handle all 4 colors.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -51,7 +54,7 @@
 #
 # TODOs: see exra file TODO.md 
 
-__VERSION__ = '0.9'
+__VERSION__ = '1.0'
 
 from cStringIO import StringIO
 from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
@@ -78,10 +81,18 @@ debug = False
 # FONT_METRICS['Helvetica'][1]['W']
 #  944
 
-def page_changemarks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.007, min_w=0.01, ext_w=0.05, anno=True):
+def page_changemarks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.007, min_w=0.01, ext_w=0.05, features='C,H,A'):
   # cb_x=0.98 changebar on right margin
   # cb_x=0.02 changebar on left margin
   # min_w=0.05: each mark is min 5% of the page width wide. If not we add extenders.
+
+  anno=False
+  highlight=False
+  changebar=False
+  features = map(lambda x: x[0].upper(), features.split(','))
+  if 'A' in features: anno=True
+  if 'H' in features: highlight=True
+  if 'C' in features: changebar=True
 
   # mediabox [0, 0, 612, 792], list of 4x float or FloatObject
   # FloatObject does not support arithmetics with float. Needs casting. Sigh.
@@ -130,10 +141,11 @@ def page_changemarks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.007, m
     (x,y,w,h) = (m['x'], m['y'], m['w'], m['h'])
     if w < min_w:
       if debug: print "min_w:%s (%s)" % (min_w, w)
-      canvas.rect(x2c(x-ext_w),y2c(y+0.2*h), w2c(w+2*ext_w),h2c(0.2*h), fill=1, stroke=0)
-      canvas.rect(x2c(x-ext_w),y2c(y-1.2*h), w2c(w+2*ext_w),h2c(0.2*h), fill=1, stroke=0)
-      x = x - (0.5 * (min_w-w))
-      canvas.rect(x2c(x),y2c(y),w2c(min_w),h2c(h*1.2), fill=1, stroke=0)
+      if highlight:
+        canvas.rect(x2c(x-ext_w),y2c(y+0.2*h), w2c(w+2*ext_w),h2c(0.2*h), fill=1, stroke=0)
+        canvas.rect(x2c(x-ext_w),y2c(y-1.2*h), w2c(w+2*ext_w),h2c(0.2*h), fill=1, stroke=0)
+        x = x - (0.5 * (min_w-w))
+        canvas.rect(x2c(x),y2c(y),w2c(min_w),h2c(h*1.2), fill=1, stroke=0)
       if anno:
         anno_popup(canvas, x2c(x),y2c(y),    w2c(min_w),h2c(h*1.4), m)
     else:
@@ -141,16 +153,17 @@ def page_changemarks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.007, m
       # to the bottom padding that is automatically added
       # due to descenders extending across the font baseline.
       # 1.2 is often not enough to look symmetric.
-      canvas.rect(x2c(x),y2c(y),    w2c(w),h2c(h*1.4), fill=1, stroke=0)
+      if highlight:
+        canvas.rect(x2c(x),y2c(y),    w2c(w),h2c(h*1.4), fill=1, stroke=0)
       if anno:
         anno_popup(canvas, x2c(x),y2c(y),    w2c(w),h2c(h*1.4), m)
 
-    # change bar
-    canvas.rect(x2c(cb_x),  y2c(y),w2c(cb_w),  h2c(h*1.4), fill=1, stroke=1)
-    if debug:
-      canvas.drawString(x2c(x),y2c(y),'.(%d,%d)%s(%d,%d)' % (x2c(x),y2c(y),m['t'],x,y))
-      pprint(m)
-      return      # shortcut, only the first word of the page
+    if changebar:
+      canvas.rect(x2c(cb_x),  y2c(y),w2c(cb_w),  h2c(h*1.4), fill=1, stroke=1)
+      if debug:
+        canvas.drawString(x2c(x),y2c(y),'.(%d,%d)%s(%d,%d)' % (x2c(x),y2c(y),m['t'],x,y))
+        pprint(m)
+        return      # shortcut, only the first word of the page
 
 def page_watermark(canvas, box, argv, color=[1,0,1], trans=0.5):
   canvas.setFont('Helvetica',5)
@@ -338,17 +351,17 @@ def xml2fontinfo(dom, last_page=None):
     finfo.append(p_finfo)
   return finfo
 
-
 def main():
   parser = ArgumentParser(epilog="version: "+__VERSION__, description="highlight words in a PDF file.")
   parser.def_trans = 0.5
   parser.def_decrypt_key = ''
-  parser.def_sea_col = ['pink', [1,0,1]]
-  parser.def_add_col = ['green',  [0.3,1,0.3]]
-  parser.def_del_col = ['red',    [1,.3,.3]]
-  parser.def_chg_col = ['yellow', [.9,.8,0]]
+  parser.def_colors = { 'E': [1,0,1,   'pink'], 
+                        'A': [.3,1,.3, 'green'],
+                        'D': [1,.3,.3, 'red'],
+                        'C': [.9,.8,0, 'yellow'] }
   parser.def_output = 'output.pdf'
-  parser.def_mark= 'A,D,C'
+  parser.def_marks = 'A,D,C'
+  parser.def_features = 'H,C,P'
   parser.add_argument("-o", "--output", metavar="OUTFILE", default=parser.def_output,
                       help="write output to FILE; default: "+parser.def_output)
   parser.add_argument("-s", "--search", metavar="WORD_REGEXP", 
@@ -359,18 +372,18 @@ def main():
                       help="mark added, deleted and replaced text (or see -m) with regard to OLDFILE. \
                             File formats .pdf, .xml, .txt are recognized by their suffix. \
                             The comparison works word by word.")
-  parser.add_argument("-m", "--mark", metavar="OPS", default=parser.def_mark,
+  parser.add_argument("-m", "--mark", metavar="OPS", default=parser.def_marks,
                       help="specify what to mark. Used with -c. Allowed values are 'add','delete','change','equal'. \
                             Multiple values can be listed comma-seperated; abbreviations are allowed.\
-                            Default: " + str(parser.def_mark))
+                            Default: " + str(parser.def_marks))
+  parser.add_argument("-f", "--features", metavar="FEATURES", default=parser.def_features,
+                      help="specify how to mark. Allowed values are 'highlight','changebar','popup'. \
+                            Default: " + str(parser.def_features))
   parser.add_argument("-e", "--exclude-irrelevant-pages", default=False, action="store_true",
                       help="with -s: show only matching pages; with -c: show only changed pages; \
                       default: reproduce all pages from INFILE in OUTFILE")
   parser.add_argument("-i", "--nocase", default=False, action="store_true",
                       help="make -s case insensitive; default: case sensitive")
-  parser.add_argument("-A", "--no-anno", default=False, action="store_true",
-                      help="This option prevents adding Annotations to the output PDF file. \
-                      Default: annotate each Mark with 'operation:position: orignal_text'")
   parser.add_argument("-L", "--last-page", metavar="LAST_PAGE",
                       help="limit pages processed; this counts pages, it does not use document \
                       page numbers; see also -F; default: all pages")
@@ -385,10 +398,9 @@ def main():
                       help="print the version number and exit")
   parser.add_argument("-X", "--no-compression", default=False, action="store_true",
                       help="write uncompressed PDF. Default: FlateEncode filter compression.")
-  parser.add_argument("-C", "--search-color", default=parser.def_sea_col[1], nargs=3, metavar="N",
-                      help="set color of the search highlight as an RGB triplet; default is %s: %s" 
-                      % (parser.def_sea_col[0], ' '.join(map(lambda x: str(x), parser.def_sea_col[1])))
-                      )
+  parser.add_argument("-C", "--search-color", metavar="NAME=R,G,B", action="append",
+                      help="set colors of the search highlights as an RGB triplet; R,G,B ranges are 0.0-1.0 each; valid names are 'add,'delete','change','equal','all'; default name is 'equal', which is also used for -s; default colors are " + 
+                      " ".join(map(lambda (x,y): "%s=%s,%s,%s /*%s*/ " %(x,y[0],y[1],y[2],y[3]), parser.def_colors.items())))
   parser.add_argument("infile", metavar="INFILE", help="the input filename")
   args = parser.parse_args()      # --help is automatic
 
@@ -396,6 +408,24 @@ def main():
 
   if args.version: parser.exit(__VERSION__)
   debug = args.debug
+
+  args.search_colors = parser.def_colors.copy()
+  if args.search_color:
+    for col in args.search_color:
+      val=None
+      b=None
+      try: (name,val) = col.split('=')
+      except: pass 
+      if val is None: (name,val)=('equal', col)
+      try: (r,g,b) = val.split(',')
+      except: pass 
+      if b is None: parser.exit("--search-color NAME=R,G,B: no two ',' found in '%s=%s'" % (name,val))
+      if name.upper() == 'ALL':
+        for c in args.search_colors.keys():
+          args.search_colors[c] = [float(r),float(g),float(b)]
+      else:
+        name = name[0].upper()
+        args.search_colors[name] = [float(r),float(g),float(b)]
 
   ## TEST this, fix or disable: they should work well together:
   # if args.search and args.compare_text:
@@ -465,10 +495,10 @@ def main():
       first_page=first_page,
       last_page=last_page,
       mark_ops=args.mark,
-      ext={'a': {'c':parser.def_add_col[1]},
-           'd': {'c':parser.def_del_col[1]},
-           'c': {'c':parser.def_chg_col[1]},
-           'e': {'c':args.search_color} })
+      ext={'a': {'c':args.search_colors['A']},
+           'd': {'c':args.search_colors['D']},
+           'c': {'c':args.search_colors['C']},
+           'e': {'c':args.search_colors['E']} })
 
   # pprint(page_marks[0])
 
@@ -524,8 +554,8 @@ def main():
     ## merge this string ontop of the original page.
     pdf_str = StringIO()
     c = canvas.Canvas(pdf_str, pagesize=(box[2],box[3]))
-    page_watermark(c, box, sys.argv, color=args.search_color, trans=args.transparency)
-    page_changemarks(c, box, page_marks[i], trans=args.transparency, anno=not args.no_anno)
+    page_watermark(c, box, sys.argv, color=args.search_colors['E'], trans=args.transparency)
+    page_changemarks(c, box, page_marks[i], trans=args.transparency, features=args.features)
 
     # c.textAnnotation('Here is a Note', Rect=[34,0,0,615], addtopage=1,Author='Test Opacity=0.1',Color=[0.7,0.8,1],Type='/Comment',Opacity=0.1)
     # c.linkURL(".: Here is a Note", (30,10,200,20), relative=0, Border="[ 1 1 1 ]")
