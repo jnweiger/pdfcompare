@@ -710,14 +710,14 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
     p_nr=None
     for w in dw[idx1:idx2]:
       if p_nr is None:
-        p_nr = w[3]['p']
+        p_nr = w[3].get('p','')
       if ypos is None:
-        ypos = w[3]['y']
-      if p_nr != w[3]['p']:
+        ypos = w[3].get('y','')
+      if w[3].has_key('p') and p_nr != w[3]['p']:
         p_nr = w[3]['p']
         text += " <br> --]page:%d[--" % int(p_nr)
         llen=1000 # fallthrough
-      if llen > 100 or ypos != w[3]['y']:
+      if llen > 100 or ypos != w[3].get('y',''):
         # silly hack for okular. It does not do line wrapping on its own.
         # evince and acroread do it. Okular wraps the line, when I say <br>, 
         # but the others will then print out "<br>". 
@@ -725,7 +725,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         # These URL annotations are not meant to contain html code. 
         text += " <br> "
         llen = 0
-        ypos = w[3]['y']
+        ypos = w[3].get('y','')
       elif llen > 0:
         text += " "
         llen += 1
