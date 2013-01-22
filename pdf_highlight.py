@@ -35,9 +35,12 @@
 #                     - line wrapping for okular popups, if over 60 chars.
 #                     - added page break markers in annotations.
 #                     - smaller files: we merge once, and help ourselves with /Annots.
-# 2013-01-21, V1.0 jw - added option --features anno,highight,changebar
+# 2013-01-21, V1.0 jw - added option --features popup(aka anno),highight,changebar
 #                     - removed option --no-anno in favour of option --features.
 #                     - improved option --search-colors to handle all 4 colors.
+#                     - fixed features default. 
+#                     - made -c optional.
+#                     - added -n --no-output. Return value compatible with /bin/cmp.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -91,6 +94,7 @@ def page_changemarks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.007, m
   changebar=False
   features = map(lambda x: x[0].upper(), features.split(','))
   if 'A' in features: anno=True
+  if 'P' in features: anno=True         # aka popup
   if 'H' in features: highlight=True
   if 'C' in features: changebar=True
 
@@ -382,6 +386,8 @@ def main():
   parser.add_argument("-e", "--exclude-irrelevant-pages", default=False, action="store_true",
                       help="with -s: show only matching pages; with -c: show only changed pages; \
                       default: reproduce all pages from INFILE in OUTFILE")
+  parser.add_argument("-n", "--no-output", default=False, action="store_true",
+                      help="do not write an output file; print diagnostics only; default: write output file as per -o")
   parser.add_argument("-i", "--nocase", default=False, action="store_true",
                       help="make -s case insensitive; default: case sensitive")
   parser.add_argument("-L", "--last-page", metavar="LAST_PAGE",
@@ -400,8 +406,10 @@ def main():
                       help="write uncompressed PDF. Default: FlateEncode filter compression.")
   parser.add_argument("-C", "--search-color", metavar="NAME=R,G,B", action="append",
                       help="set colors of the search highlights as an RGB triplet; R,G,B ranges are 0.0-1.0 each; valid names are 'add,'delete','change','equal','all'; default name is 'equal', which is also used for -s; default colors are " + 
-                      " ".join(map(lambda (x,y): "%s=%s,%s,%s /*%s*/ " %(x,y[0],y[1],y[2],y[3]), parser.def_colors.items())))
-  parser.add_argument("infile", metavar="INFILE", help="the input filename")
+                      " ".join(map(lambda (x,y): "%s=%s,%s,%s /*%s*/ " %(x,y[0],y[1],y[2],y[3]), 
+                      parser.def_colors.items())))
+  parser.add_argument("infile", metavar="INFILE", help="the input file")
+  parser.add_argument("infile2", metavar="INFILE2", nargs="?", help="optional 'newer' input file; alternate syntax to -c")
   args = parser.parse_args()      # --help is automatic
 
   args.transparency = 1 - args.transparency     # it is needed reversed.
@@ -431,8 +439,11 @@ def main():
   # if args.search and args.compare_text:
   #   parser.exit("Usage error: -s search and -c compare are mutually exclusive, try --help")
 
+  if args.compare_text is None and args.infile2 is not None:
+    args.compare_text,args.infile = args.infile,args.infile2
+
   if args.search is None and args.compare_text is None:
-    parser.exit("Oops. Nothing to do. Specify either -s or -c")
+    parser.exit("Oops. Nothing to do. Specify either -s or -c or two input files")
 
   if not os.access(args.infile, os.R_OK):
     parser.exit("Cannot read input file: %s" % args.infile)
@@ -528,6 +539,7 @@ def main():
   output._info = Pdf.IndirectObject(len(output._objects), 0, output)
 
   pages_written = 0
+  total_hits = 0
 
   for i in range(first_page,last_page):
     if args.exclude_irrelevant_pages and len(page_marks[i]['rect']) == 0:
@@ -538,6 +550,7 @@ def main():
       if not hitdetails.has_key(tag):
         hitdetails[tag] = 0
       hitdetails[tag] += 1
+      total_hits += 1
     hits_fmt = ''
     for det,ch in (['add','+'], ['del','-'], ['chg','~'], ['equ','=']):
       if hitdetails[det]: hits_fmt += '%s%d' % (ch,hitdetails[det])
@@ -588,10 +601,16 @@ def main():
       output.addPage(page)
     pages_written += 1
 
-  outputStream = file(args.output, "wb")
-  output.write(outputStream)
-  outputStream.close()
-  print "%s (%s pages) written." % (args.output, pages_written)
+  if args.no_output is False:
+    outputStream = file(args.output, "wb")
+    output.write(outputStream)
+    outputStream.close()
+    print "%s (%s pages) written." % (args.output, pages_written)
+
+  if total_hits:
+    sys.exit(1)
+  else:
+    sys.exit(0)
 
 
 
