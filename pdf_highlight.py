@@ -57,6 +57,9 @@
 #
 # TODOs: see exra file TODO.md 
 
+# Compatibility for older Python versions
+from __future__ import with_statement
+
 __VERSION__ = '1.0'
 
 from cStringIO import StringIO
@@ -245,16 +248,11 @@ def textfile2wordlist(fname):
       in an enormous diff.
       """
   wl = []
-  lnr = 0
   # assume .txt files are utf8 encoded, but please survive binary garbage.
-  f = codecs.open(fname, 'r', 'utf-8', errors='ignore')
-  while True:
-    line = f.readline()
-    if len(line)==0: break
-    lnr += 1
-    for w in line.split():
-      wl.append(DecoratedWord([w,None,None,{'l':lnr}]))
-  f.close()
+  with codecs.open(fname, 'r', 'utf-8', errors='ignore') as f:
+    for lnr, line in enumerate(f):
+      for w in line.split():
+        wl.append(DecoratedWord([w,None,None,{'l':lnr}]))
   return wl
   
 def textline2wordlist(text, context):
