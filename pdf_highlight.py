@@ -41,8 +41,9 @@
 #                     - fixed features default. 
 #                     - made -c optional.
 #                     - added -n --no-output. Return value compatible with /bin/cmp.
-# 2013-01-23, V1.1 jw - backwards and forwards navigation code added for easily finding next 
-#                       and previous page with changes. It fails to find its targets. Disabled.
+# 2013-01-23, V1.1 jw - backwards and forwards navigation code added for easily
+#                       finding next and previous page with changes. The hrefs fail to
+#                       find their destination. But at least its a visual aid.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -89,7 +90,7 @@ debug = False
 # FONT_METRICS['Helvetica'][1]['W']
 #  944
 
-def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_w=0.007, min_w=0.01, ext_w=0.05, features='C,H,A'):
+def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_w=0.007, min_w=0.01, ext_w=0.05, features='C,H,A,N'):
   # cb_x=0.98 changebar on right margin
   # cb_x=0.02 changebar on left margin
   # min_w=0.05: each mark is min 5% of the page width wide. If not we add extenders.
@@ -117,10 +118,23 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
   def h2c(h):
     return (0.0+h*float(mediabox[3])/marks['h'])
 
-  def nav_mark(canv, x,y, w, h, target_page):
-    text = "jump to %s" % target_page
-    dest = "jump_%s" % target_page
-    canv.linkAbsolute(text, dest, Rect=(x,y, x+w,y+h))
+  def nav_mark_fwd(canv, target_page, radius=5):
+    w,h = canv._pagesize
+    w=float(w)
+    h=float(h)
+    r = w * radius * 0.01       # percent of page width
+    canv.wedge(w-r-r,-r, w,r,     45,90, fill=1, stroke=0)     # bottom
+    dest = "jump_"+str(canv.getPageNumber())
+    canv.linkAbsolute("to page %d" % target_page, dest, (w-r-r,0, w,r))
+
+  def nav_mark_bwd(canv, target_page, radius=50):
+    w,h = canv._pagesize
+    w=float(w)
+    h=float(h)
+    r = w * radius * 0.01       # percent of page width
+    canv.wedge(w-r-r,h-r, w,h+r, 225,90, fill=1, stroke=0)     # top
+    dest = "jump_"+str(canv.getPageNumber())
+    canv.linkAbsolute("to page %d" % target_page, dest, (w-r-r,h, w,h-r))
 
   def anno_popup(canv, x,y, w,h, mark):
     # We misuse linkURL() as this is the only annotation, that a) can be written with reportlab() and b)
@@ -144,13 +158,11 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
   ext_w = ext_w          * float(mediabox[2])    # extenders, if needed
 
   if navigation:
+    canvas.setFillColor(Color(marks['nav_c'][0],marks['nav_c'][1],marks['nav_c'][2], alpha=trans))
     if len(marks['rect']): 
-      canvas.bookmarkPage("jump_%s" % page_idx)
-      print("jump_%s" % page_idx)
-    if marks.has_key('nav_bwd'):
-      nav_mark(canvas, marks['w']-30, marks['h']-30, marks['w'], marks['h'], marks['nav_bwd'])
-    if marks.has_key('nav_fwd'):
-      nav_mark(canvas, marks['w']-30, 30, marks['w'], 0, marks['nav_fwd'])
+      canvas.bookmarkPage("jump_%s" % canvas.getPageNumber())
+    if marks.has_key('nav_bwd'): nav_mark_bwd(canvas, marks['nav_bwd'], 2)
+    if marks.has_key('nav_fwd'): nav_mark_fwd(canvas, marks['nav_fwd'], 2)
 
   canvas.setFont('Helvetica',5)
   ### a testing grid
@@ -381,7 +393,7 @@ def main():
                         'C': [.9,.8,0, 'yellow'] }
   parser.def_output = 'output.pdf'
   parser.def_marks = 'A,D,C'
-  parser.def_features = 'H,C,P'
+  parser.def_features = 'H,C,P,N'
   parser.add_argument("-o", "--output", metavar="OUTFILE", default=parser.def_output,
                       help="write output to FILE; default: "+parser.def_output)
   parser.add_argument("-s", "--search", metavar="WORD_REGEXP", 
@@ -910,7 +922,8 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
     
             offset += l[i+1]
           i += 2
-    pages_a.append({'nr':int(p.attrib['number']), 'rect':p_rect,
+    pages_a.append({'nr':int(p.attrib['number']), 'rect':p_rect, 
+                 'nav_c':ext['e'].get('c',[.5,.5,.5]),
                  'h':float(p.attrib['height']), 'w':float(p.attrib['width']),
                  'x':float(p.attrib['left']), 'y':float(p.attrib['top'])})
   return pages_a
