@@ -12,13 +12,8 @@ TODO
   This is important when e.g. markdown source has a 0x20 space, but rendered
   PDF may have &nbsp; instead.
 
-* Navigation from changebar to changebar, if there are many unchanged pages to jump over.
-  - find a way how to know the destination pages with the page objects being
-    handled in pyPDF and not in reportlab, sigh.
-
 * test on fossy: import argparse complains about already imported.
 
-* popups are all in one line in okular. Need to provide linebreaks manually, sigh.
 
 DONE:
 * write compressed streams.
@@ -45,4 +40,6 @@ DONE:
 * if pagebreaks are within deleted text, point this out in the baloon popup.
   
 * Navigation from changebar to changebar, if there are many unchanged pages to jump over.
-  - calculation, graphics done. But hrefs are nonfunctional.
+  - calculation, graphics done. Hack with relocated navigation done.
+
+* popups are all in one line in okular. Need to provide linebreaks manually, sigh.
