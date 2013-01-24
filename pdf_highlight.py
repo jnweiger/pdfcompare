@@ -47,6 +47,8 @@
 #                     - implemented proper relocation and merge in mergeAnnots().
 #                     - some off-by-one errors fixed with first_page, last_page.
 #                     - some python3 porting: print(), key in dict, isinstance()
+# 2013-01-24, V1.2 jw - new -- feature margin; ignore a certain margin on the pages
+#                       option -M  added.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -66,7 +68,7 @@
 # Compatibility for older Python versions
 from __future__ import with_statement
 
-__VERSION__ = '1.1'
+__VERSION__ = '1.2'
 
 from cStringIO import StringIO
 from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
@@ -207,16 +209,33 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
         pprint(m)
         return      # shortcut, only the first word of the page
 
-def page_watermark(canvas, box, argv, color=[1,0,1], trans=0.5):
-  canvas.setFont('Helvetica',5)
-  av = []
-  for arg in argv:
-    m=re.match("\S\S\S\S+(/.*?)$", arg)
-    if m: arg = "..."+m.group(1)
-    av.append(arg)
-  text = "Highlights added by (V" + __VERSION__ + "):  " + " ".join(av)
-  canvas.setFillColor(Color(color[0],color[1],color[2], alpha=trans))
-  canvas.drawString(15,10,text)
+def page_watermark(canv, box, argv, color=[1,0,1], trans=0.5, margins=None, features='W,M'):
+  f_watermark=False
+  f_margins=False
+  features = map(lambda x: x[0].upper(), features.split(','))
+  if 'M' in features: f_margins=True
+  if 'W' in features: f_watermark=True
+
+  if f_margins:
+    w,h = canv._pagesize
+    w=float(w)
+    h=float(h)
+    canv.setFillColor(Color(margins['c'][0],margins['c'][1],margins['c'][2], alpha=trans))
+    if margins['n']: canv.rect(0,h-margins['n'], w,margins['n'], fill=1, stroke=0)
+    if margins['s']: canv.rect(0,0, w,margins['s'], fill=1, stroke=0)
+    if margins['e']: canv.rect(w-margins['e'],margins['s'], margins['e'],h-margins['n']-margins['s'], fill=1, stroke=0)
+    if margins['w']: canv.rect(0,margins['s'], margins['w'],h-margins['n']-margins['s'], fill=1, stroke=0)
+
+  if f_watermark:
+    canv.setFont('Helvetica',5)
+    av = []
+    for arg in argv:
+      m=re.match("\S\S\S\S+(/.*?)$", arg)
+      if m: arg = "..."+m.group(1)
+      av.append(arg)
+    text = "Highlights added by (V" + __VERSION__ + "):  " + " ".join(av)
+    canv.setFillColor(Color(color[0],color[1],color[2], alpha=trans))
+    canv.drawString(15,10,text)
 
 
 def pdf2xml(parser, infile, key=''):
@@ -394,13 +413,15 @@ def main():
   parser = ArgumentParser(epilog="version: "+__VERSION__, description="highlight words in a PDF file.")
   parser.def_trans = 0.5
   parser.def_decrypt_key = ''
-  parser.def_colors = { 'E': [1,0,1,   'pink'], 
-                        'A': [.3,1,.3, 'green'],
-                        'D': [1,.3,.3, 'red'],
-                        'C': [.9,.8,0, 'yellow'] }
+  parser.def_colors = { 'E': [1,0,1,    'pink'], 
+                        'A': [.3,1,.3,  'green'],
+                        'D': [1,.3,.3,  'red'],
+                        'C': [.9,.8,0,  'yellow'],
+                        'M': [.9,.9,.9, 'gray'] }
   parser.def_output = 'output.pdf'
   parser.def_marks = 'A,D,C'
-  parser.def_features = 'H,C,P,N'
+  parser.def_features = 'H,C,P,N,W,M'
+  parser.def_margins = '0,0,0,0'
   parser.add_argument("-o", "--output", metavar="OUTFILE", default=parser.def_output,
                       help="write output to FILE; default: "+parser.def_output)
   parser.add_argument("-s", "--search", metavar="WORD_REGEXP", 
@@ -415,9 +436,13 @@ def main():
                       help="specify what to mark. Used with -c. Allowed values are 'add','delete','change','equal'. \
                             Multiple values can be listed comma-seperated; abbreviations are allowed.\
                             Default: " + str(parser.def_marks))
+  parser.add_argument("-M", "--margins", metavar="N,E,W,S", default=parser.def_margins,
+                      help="specify margin space to ignore on each page. A margin width is expressed \
+                      in units of 72dpi. Specify four numbers in the order north,east,west,south. Default: "\
+                      + str(parser.def_margins))
   parser.add_argument("-f", "--features", metavar="FEATURES", default=parser.def_features,
                       help="specify how to mark. Allowed values are 'highlight', 'changebar', 'popup', \
-                      'navigation'. Default: " + str(parser.def_features))
+                      'navigation', 'watermark', 'margin'. Default: " + str(parser.def_features))
   parser.add_argument("-e", "--exclude-irrelevant-pages", default=False, action="store_true",
                       help="with -s: show only matching pages; with -c: show only changed pages; \
                       default: reproduce all pages from INFILE in OUTFILE")
@@ -440,7 +465,7 @@ def main():
   parser.add_argument("-X", "--no-compression", default=False, action="store_true",
                       help="write uncompressed PDF. Default: FlateEncode filter compression.")
   parser.add_argument("-C", "--search-color", metavar="NAME=R,G,B", action="append",
-                      help="set colors of the search highlights as an RGB triplet; R,G,B ranges are 0.0-1.0 each; valid names are 'add,'delete','change','equal','all'; default name is 'equal', which is also used for -s; default colors are " + 
+                      help="set colors of the search highlights as an RGB triplet; R,G,B ranges are 0.0-1.0 each; valid names are 'add,'delete','change','equal','margin','all'; default name is 'equal', which is also used for -s; default colors are " + 
                       " ".join(map(lambda (x,y): "%s=%s,%s,%s /*%s*/ " %(x,y[0],y[1],y[2],y[3]), 
                       parser.def_colors.items())))
   parser.add_argument("infile", metavar="INFILE", help="the input file")
@@ -470,6 +495,8 @@ def main():
         name = name[0].upper()
         args.search_colors[name] = [float(r),float(g),float(b)]
 
+  margins = parseMargins(args.margins, args.search_colors['M'])
+
   ## TEST this, fix or disable: they should work well together:
   # if args.search and args.compare_text:
   #   parser.exit("Usage error: -s search and -c compare are mutually exclusive, try --help")
@@ -488,7 +515,7 @@ def main():
   if args.compare_text:
     if re.search('\.pdf$', args.compare_text, re.I):
       dom2 = pdf2xml(parser, args.compare_text, args.decrypt_key)
-      wordlist2 = xml2wordlist(dom2, args.first_page-1, args.last_page-1)
+      wordlist2 = xml2wordlist(dom2, args.first_page-1, args.last_page-1, margins)
     elif re.search('\.xml$', args.compare_text, re.I):
       wordlist2 = xmlfile2wordlist(args.compare_text)
     else:
@@ -543,6 +570,7 @@ def main():
       first_page=first_page,
       last_page=last_page,
       mark_ops=args.mark,
+      margins=margins,
       ext={'a': {'c':args.search_colors['A']},
            'd': {'c':args.search_colors['D']},
            'c': {'c':args.search_colors['C']},
@@ -616,7 +644,7 @@ def main():
     ## merge this string ontop of the original page.
     pdf_str = StringIO()
     c = canvas.Canvas(pdf_str, pagesize=(box[2],box[3]))
-    page_watermark(c, box, sys.argv, color=args.search_colors['E'], trans=args.transparency)
+    page_watermark(c, box, sys.argv, color=args.search_colors['E'], trans=args.transparency, margins=margins, features=args.features)
     page_changemarks(c, box, page_marks[i], i-first_page, trans=args.transparency, features=args.features)
 
     # c.textAnnotation('Here is a Note', Rect=[34,0,0,615], addtopage=1,Author='Test Opacity=0.1',Color=[0.7,0.8,1],Type='/Comment',Opacity=0.1)
@@ -658,6 +686,13 @@ def main():
     sys.exit(1)
   else:
     sys.exit(0)
+
+
+def parseMargins(text,color):
+  a = text.split(',')
+  if len(a) < 4: a.extend((a[0],a[0],a[0]))
+  return {'n':float(a[0]), 'e':float(a[1]), 
+          'w':float(a[2]), 's':float(a[3]), 'c':color}
 
 
 def mergeAnnots(dest_p, src_p, first_page=0):
@@ -785,7 +820,7 @@ def zap_letter_spacing(text):
   #print("zap_letter_spacing('%s') -> '%s'" % (text,t))
   return t
 
-def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, first_page=None, last_page=None, mark_ops="D,A,C"):
+def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, first_page=None, last_page=None, mark_ops="D,A,C",margins=None):
   """traverse the XML dom tree, (which is expected to come from pdf2html -xml)
      find all occurances of re_pattern on all pages, returning rect list for 
      each page, giving the exact coordinates of the bounding box of all 
