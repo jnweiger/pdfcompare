@@ -46,6 +46,7 @@
 #                       page_ref_magic as a placeholder with dummy self refs.
 #                     - implemented proper relocation and merge in mergeAnnots().
 #                     - some off-by-one errors fixed with first_page, last_page.
+#                     - some python3 porting: print(), key in dict, isinstance()
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -145,8 +146,8 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
     # works both in acroread and ocular. HACK: For acroread, we include .: at the beginning, this prevents
     # file://full_path expansion on strings that do not look like urls.
     text = mark.get('t', '.') + ':'
-    if mark.has_key('o'):
-      if type(mark['o']) == list:
+    if 'o' in mark:
+      if isinstance(mark['o'], list):
         text += mark['o'][1]+': '+ mark['o'][0]
       else:
         text += ' '+mark['o']
@@ -165,8 +166,8 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
     canvas.setFillColor(Color(marks['nav_c'][0],marks['nav_c'][1],marks['nav_c'][2], alpha=trans))
     # dummy bookmarks for self references, to be relocated by mergeAnnots()
     canvas.bookmarkPage("jump_%s" % canvas.getPageNumber())
-    if marks.has_key('nav_bwd'): nav_mark_bwd(canvas, marks['nav_bwd'], 2)
-    if marks.has_key('nav_fwd'): nav_mark_fwd(canvas, marks['nav_fwd'], 2)
+    if 'nav_bwd' in marks: nav_mark_bwd(canvas, marks['nav_bwd'], 2)
+    if 'nav_fwd' in marks: nav_mark_fwd(canvas, marks['nav_fwd'], 2)
 
   canvas.setFont('Helvetica',5)
   ### a testing grid
@@ -559,9 +560,9 @@ def main():
 
     # update ModDate, Creator, DiffCmd
     selfcmd = " ".join(sys.argv) + ' # V' + __VERSION__ + ' ' + time.ctime()
-    if not di.has_key('/Creator'):
+    if not "/Creator" in di:
       di[Pdf.NameObject('/Creator')] = Pdf.createStringObject(selfcmd)
-    elif not di.has_key('/Producer'):
+    elif not '/Producer' in di:
       di[Pdf.NameObject('/Producer')] = Pdf.createStringObject(selfcmd)
     di[Pdf.NameObject('/DiffCmd')] = Pdf.createStringObject(selfcmd)
     di[Pdf.NameObject('/ModDate')] = Pdf.createStringObject(time.strftime("D:%Y%m%d%H%M%S"))
@@ -595,7 +596,7 @@ def main():
     hitdetails = {'equ':0, 'add':0, 'del':0, 'chg':0 }
     for r in page_marks[i]['rect']:
       tag = r.get('t','unk')
-      if not hitdetails.has_key(tag):
+      if not tag in hitdetails:
         hitdetails[tag] = 0
       hitdetails[tag] += 1
       total_hits += 1
@@ -682,17 +683,17 @@ def mergeAnnots(dest_p, src_p, first_page=0):
 
   # First we fetch the list of all IndirectObject()s for all the pages 
   # in the dest stream.
-  if dest_p.has_key("/Parent"):
+  if "/Parent" in dest_p:
     pages_a = dest_p["/Parent"].getObject().get("/Kids", [])
   else:
     pages_a = []
     print("mergeAnnots Warning: no /Parent in dest_p")
 
-  if src_p.has_key("/Annots"):
+  if "/Annot" in src_p:
     annots = src_p["/Annots"] 
     for a in annots:
       o = a.getObject() # a is an IndirectObject()
-      if o.has_key('/Contents'):
+      if "/Contents" in o:
         if debug: pprint(["mergeAnnots old:", o])
         m = re.match(page_ref_magic+"(\d+)$", o["/Contents"])
         if m:
@@ -706,7 +707,7 @@ def mergeAnnots(dest_p, src_p, first_page=0):
               (int(p_nr)+first_page, len(pages_a)))
         else:
           print("mergeAnnots failed: page_ref_magic not found: '%s'" % o["/Contents"])
-    if dest_p.has_key("/Annots"):
+    if "/Annots" in dest_p:
       print("mergeAnnots: Original annotations appened to.")
       dest_p["/Annots"].append(annots)
     else:
@@ -818,7 +819,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
     mark = create_mark(w[1], off, l,
           fontinfo[p_nr][w[3]['f']]['font'], 
           w[3]['x'],w[3]['y'],w[3]['w'],w[3]['h'], attr)
-    if not r_dict.has_key(p_nr): r_dict[p_nr] = []
+    if not p_nr in r_dict: r_dict[p_nr] = []
     r_dict[p_nr].append(mark)
 
   def catwords(dw, idx1, idx2):
@@ -831,7 +832,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         p_nr = w[3].get('p','')
       if ypos is None:
         ypos = w[3].get('y','')
-      if w[3].has_key('p') and p_nr != w[3]['p']:
+      if 'p' in w[3] and p_nr != w[3]['p']:
         p_nr = w[3]['p']
         text += " <br> --]page:%d[--" % int(p_nr)
         llen=1000 # fallthrough
@@ -849,14 +850,14 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         llen += 1
       text += w[0]
       llen += len(w[0])
-    if dw[idx1][3].has_key('p'):
+    if 'p' in dw[idx1][3]:
       page_or_elem = 'p'+str(dw[idx1][3]['p'])
-    elif dw[idx1][3].has_key('e'):
+    elif 'e' in dw[idx1][3]:
       page_or_elem = 'e'+str(dw[idx1][3]['e'])
     else:
       page_or_elem = '#'
     loc_or_lineno = dw[idx1][3].get('l','')
-    if type(loc_or_lineno) == int:
+    if isinstance(loc_or_lineno, int):
       loc_or_lineno = 'l'+str(loc_or_lineno)
     return [text, page_or_elem+loc_or_lineno]
   ######
@@ -902,21 +903,21 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
 
     for tag, i1, i2, j1, j2 in opcodes_post_proc(s.get_opcodes()):
       if tag == "equal":
-        if (ops.has_key('e')):
+        if 'e' in ops:
           attr = ext['e'].copy()
           # no need to put the old text into attr['o'], it is unchanged.
           attr['t'] = 'equ'
         else:
           continue
       elif tag == "replace":
-        if (ops.has_key('c')):
+        if 'c' in ops:
           attr = ext['c'].copy()
           attr['o'] = catwords(wordlist, i1, i2)
           attr['t'] = 'chg'
         else:
           continue
       elif tag == "delete":
-        if (ops.has_key('d')):
+        if 'd' in ops:
           attr = ext['d'].copy()
           attr['o'] = catwords(wordlist, i1, i2)
           attr['t'] = 'del'
@@ -924,7 +925,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         else:
           continue
       elif tag == "insert":
-        if (ops.has_key('a')):
+        if 'a' in ops:
           attr = ext['a'].copy()
           attr['t'] = 'add'
         else:
