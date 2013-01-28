@@ -47,8 +47,8 @@
 #                     - implemented proper relocation and merge in mergeAnnots().
 #                     - some off-by-one errors fixed with first_page, last_page.
 #                     - some python3 porting: print(), key in dict, isinstance()
-# 2013-01-24, V1.2 jw - new -- feature margin; ignore a certain margin on the pages
-#                       option -M  added.
+# 2013-01-24, V1.2 jw - new -- feature margin; ignore a certain margin on the 
+#                       pages option -M  added.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -63,7 +63,7 @@
 #   if text is not left-to-right. And it should report spacing adjustements 
 #   within a string.
 #
-# TODOs: see exra file TODO.md 
+# TODOs: see extra file TODO.md 
 
 # Compatibility for older Python versions
 from __future__ import with_statement
