@@ -47,8 +47,12 @@
 #                     - implemented proper relocation and merge in mergeAnnots().
 #                     - some off-by-one errors fixed with first_page, last_page.
 #                     - some python3 porting: print(), key in dict, isinstance()
-# 2013-01-24, V1.2 jw - new -- feature margin; ignore a certain margin on the 
-#                       pages option -M  added.
+# 2013-01-24, V1.1a jw - new --feature margin; ignore a certain margin on the 
+#                        pages option -M  added. Unfinished.
+# 2013-01-28, V1.1b jw - no more subtracting from NoneType
+#                      - bugfix in mergeAnnots()
+#                      - factored out highlight_height and reduced from 
+#                        1.4 to 1.2 for less overlap.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -68,7 +72,7 @@
 # Compatibility for older Python versions
 from __future__ import with_statement
 
-__VERSION__ = '1.2'
+__VERSION__ = '1.1a'
 
 from cStringIO import StringIO
 from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
@@ -92,6 +96,8 @@ sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 debug = False
 page_ref_magic = "675849302 to page "     # a token we use to patch the page objects.
 page_ref_plain = "to page "     # this will be visible as a popup on navigation marks.
+
+highlight_height = 1.2  # some fonts cause too much overlap with 1.4
 
 # from pdfminer.fontmetrics import FONT_METRICS
 # FONT_METRICS['Helvetica'][1]['W']
@@ -131,14 +137,14 @@ def mergeAnnotsRelocate(dest_p, src_p, first_page=0):
     for a in annots:
       o = a.getObject() # a is an IndirectObject()
       if "/Contents" in o:
-        if debug: pprint(["mergeAnnots old:", o])
+        if debug > 1: pprint(["mergeAnnots old:", o])
         m = re.match(page_ref_magic+"(\d+)$", o["/Contents"])
         if m:
           p_nr = m.group(1)
           o[Pdf.NameObject("/Contents")] = Pdf.createStringObject(page_ref_plain+p_nr)
           if len(pages_a) > int(p_nr)+first_page:
             o["/Dest"][0] = pages_a[int(p_nr)+first_page]
-            if debug: pprint(["mergeAnnots new:", o])
+            if debug > 1: pprint(["mergeAnnots new:", o])
           else:
             print("mergeAnnots failed: page_idx %d out of range. Have %d" % 
               (int(p_nr)+first_page, len(pages_a)))
@@ -147,7 +153,7 @@ def mergeAnnotsRelocate(dest_p, src_p, first_page=0):
     if "/Annots" in dest_p:
       if debug:
         print("mergeAnnots: append %d+%d" % (len(dest_p["/Annots"]), len(annots)))
-      dest_p["/Annots"].append(annots)
+      dest_p["/Annots"].extend(annots)
     else:
       dest_p[Pdf.NameObject("/Annots")] = annots
 
@@ -228,7 +234,7 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
 
   canvas.setFont('Helvetica',5)
   ### a testing grid
-  if debug:
+  if debug > 1:
     for x in range(0,13):
       for y in range(0,50):
         canvas.drawString(50*x,20*y,'.(%d,%d)' % (50*x,20*y))
@@ -239,27 +245,28 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
     # m = {'h': 23, 'c': [1,0,1], 't': 'Popular', 'w': 76.56716417910448, 'x': 221.0, 'y': 299}
     (x,y,w,h) = (m['x'], m['y'], m['w'], m['h'])
     if w < min_w:
-      if debug: print("min_w:%s (%s)" % (min_w, w))
+      if debug > 1: print("min_w:%s (%s)" % (min_w, w))
       if highlight:
+        # delete marker: two horizontal and one vertical bar.
         canvas.rect(x2c(x-ext_w),y2c(y+0.2*h), w2c(w+2*ext_w),h2c(0.2*h), fill=1, stroke=0)
-        canvas.rect(x2c(x-ext_w),y2c(y-1.2*h), w2c(w+2*ext_w),h2c(0.2*h), fill=1, stroke=0)
+        canvas.rect(x2c(x-ext_w),y2c(y-(highlight_height-0.2)*h), w2c(w+2*ext_w),h2c(0.2*h), fill=1, stroke=0)
         x = x - (0.5 * (min_w-w))
-        canvas.rect(x2c(x),y2c(y),w2c(min_w),h2c(h*1.2), fill=1, stroke=0)
+        canvas.rect(x2c(x),y2c(y),w2c(min_w),h2c(h*(highlight_height-0.2)), fill=1, stroke=0)
       if anno:
-        anno_popup(canvas, x2c(x),y2c(y),    w2c(min_w),h2c(h*1.4), m)
+        anno_popup(canvas, x2c(x),y2c(y),    w2c(min_w),h2c(h*highlight_height), m)
     else:
-      # multiply height h with 1.4 to add some top padding, similar
+      # multiply height h with 1.2 to add some top padding, similar
       # to the bottom padding that is automatically added
       # due to descenders extending across the font baseline.
       # 1.2 is often not enough to look symmetric.
       if highlight:
-        canvas.rect(x2c(x),y2c(y),    w2c(w),h2c(h*1.4), fill=1, stroke=0)
+        canvas.rect(x2c(x),y2c(y),    w2c(w),h2c(h*highlight_height), fill=1, stroke=0)
       if anno:
-        anno_popup(canvas, x2c(x),y2c(y),    w2c(w),h2c(h*1.4), m)
+        anno_popup(canvas, x2c(x),y2c(y),    w2c(w),h2c(h*highlight_height), m)
 
     if changebar:
-      canvas.rect(x2c(cb_x),  y2c(y),w2c(cb_w),  h2c(h*1.4), fill=1, stroke=1)
-      if debug:
+      canvas.rect(x2c(cb_x),  y2c(y),w2c(cb_w),  h2c(h*highlight_height), fill=1, stroke=1)
+      if debug > 1:
         canvas.drawString(x2c(x),y2c(y),'.(%d,%d)%s(%d,%d)' % (x2c(x),y2c(y),m['t'],x,y))
         pprint(m)
         return      # shortcut, only the first word of the page
@@ -576,9 +583,9 @@ def main():
     if re.search('\.pdf$', args.compare_text, re.I):
       dom2 = pdf2xml(parser, args.compare_text, args.decrypt_key)
       first_page = args.first_page
-      if first_page is not None: first_page -= 1
+      if first_page is not None: first_page = int(first_page) - 1
       last_page = args.last_page
-      if last_page is not None: last_page -= 1
+      if last_page is not None: last_page = int(last_page) - 1
       wordlist2 = xml2wordlist(dom2, first_page, last_page, margins=margins)
     elif re.search('\.xml$', args.compare_text, re.I):
       wordlist2 = xmlfile2wordlist(args.compare_text)
