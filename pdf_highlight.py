@@ -72,7 +72,7 @@
 # Compatibility for older Python versions
 from __future__ import with_statement
 
-__VERSION__ = '1.1a'
+__VERSION__ = '1.1b'
 
 from cStringIO import StringIO
 from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
