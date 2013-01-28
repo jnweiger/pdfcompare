@@ -145,7 +145,8 @@ def mergeAnnotsRelocate(dest_p, src_p, first_page=0):
         else:
           print("mergeAnnots failed: page_ref_magic not found: '%s'" % o["/Contents"])
     if "/Annots" in dest_p:
-      print("mergeAnnots: Original annotations appened to.")
+      if debug:
+        print("mergeAnnots: append %d+%d" % (len(dest_p["/Annots"]), len(annots)))
       dest_p["/Annots"].append(annots)
     else:
       dest_p[Pdf.NameObject("/Annots")] = annots
