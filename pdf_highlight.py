@@ -574,7 +574,11 @@ def main():
   if args.compare_text:
     if re.search('\.pdf$', args.compare_text, re.I):
       dom2 = pdf2xml(parser, args.compare_text, args.decrypt_key)
-      wordlist2 = xml2wordlist(dom2, args.first_page-1, args.last_page-1, margins=margins)
+      first_page = args.first_page
+      if first_page is not None: first_page -= 1
+      last_page = args.last_page
+      if last_page is not None: last_page -= 1
+      wordlist2 = xml2wordlist(dom2, first_page, last_page, margins=margins)
     elif re.search('\.xml$', args.compare_text, re.I):
       wordlist2 = xmlfile2wordlist(args.compare_text)
     else:
