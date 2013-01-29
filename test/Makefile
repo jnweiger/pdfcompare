@@ -1,4 +1,4 @@
-VER=1.0
+VER=1.1b
 
 all: test
 

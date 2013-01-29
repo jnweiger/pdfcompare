@@ -6,11 +6,11 @@
 #
 
 if pdfcompare --help | tail -n 1; then
-    help=$(pdfcompare --help | tail -n 1 | grep -o ...$)
+    help=$(pdfcompare --help | tail -n 1 | awk '{print $2}')
     if [[ "$help" == "$1" ]]; then
 	echo "The version numbers match!"
     else
-	echo "The version numbers don't match!"
+	echo "The version numbers ($help != $1) don't match!"
 	exit 2
     fi
 else
