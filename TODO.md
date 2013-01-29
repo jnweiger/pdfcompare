@@ -1,13 +1,25 @@
 TODO
 
-* introduce an ignore-margin for text changes. Any words there will not go into the compare 
-  wordlists, or will match with --search. This is meant to skip over pagenumbers and other 
-  bottom or top matter, that is not considered part of the document contents stream.
-  --feature margin shall draw the margin area as shaded gray, so that we know where we are.
+* feature:
+  pipe the wordlist through hunspell, if hunspell is available.
+  use search-highlights to mark all words for which hunspell has spelling 
+  suggestions. 
+
+* feature: logfile generator.
+  produce a json/xml/csv/txt file describing the diffs, -s word locations 
+  and --spellcheck results.
+
+* introduce an ignore-margin for text changes. Any words there will not go into
+  the compare wordlists, or will match with --search. This is meant to skip
+  over pagenumbers and other bottom or top matter, that is not considered part
+  of the document contents stream.
+  --feature margin shall draw the margin area as shaded gray, so that we know
+  where we are.
 
 * testsuite
   - maybe prepare a test script that allows numbers to be off by some 
     percentage, but wants everything else precise.
+    This helps with pdf source checking.
 
 * one letter changes always become word changes.
   Either run in single character mode. Or try to trim the replaced text for 

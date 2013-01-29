@@ -53,6 +53,8 @@
 #                      - bugfix in mergeAnnots()
 #                      - factored out highlight_height and reduced from 
 #                        1.4 to 1.2 for less overlap.
+# 2013-01-29, V1.2  jw - added bbox_overlap(), bbox_inside() in_bbox_interpolated()
+#                        to implement margin feature.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -72,7 +74,7 @@
 # Compatibility for older Python versions
 from __future__ import with_statement
 
-__VERSION__ = '1.1b'
+__VERSION__ = '1.2'
 
 from cStringIO import StringIO
 from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
@@ -159,8 +161,8 @@ def mergeAnnotsRelocate(dest_p, src_p, first_page=0):
 
 
 def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_w=0.007, min_w=0.01, ext_w=0.05, features='C,H,A,N'):
-  # cb_x=0.98 changebar on right margin
-  # cb_x=0.02 changebar on left margin
+  # cb_x=0.98 changebar near right edge
+  # cb_x=0.02 changebar near left edge
   # min_w=0.05: each mark is min 5% of the page width wide. If not we add extenders.
 
   anno=False
@@ -374,8 +376,77 @@ def textfile2wordlist(fname):
       for w in line.split():
         wl.append(DecoratedWord([w,None,None,{'l':lnr}]))
   return wl
+
+def bbox_inside(bb1, bb2):
+  """ checks if bb2 is inside the bounding box bb1.
+      The bounding box format is [x1,y1,x2,y2].
+      If bb2 is a bounding box, all 4 corners must be inside bb1.
+      If bb2 has only length 2, it is interpreted as a point [x,y].
+  """
+
+  if len(bb2) < 4:
+    # a point was given, promote to 0-size bbox. Same price.
+    x,y = bb2
+    bb2 = [x,y,x,y]
+  if bb2[0] < bb1[0]: return False
+  if bb2[1] < bb1[1]: return False
+  if bb2[2] > bb1[2]: return False
+  if bb2[3] > bb1[3]: return False
+  return True
+
+def bbox_overlap(bb1, bb2):
+  """ bb1 and bb2 are expected as four element rectangles in the format
+      [x1,y1,x2,y2]. Returns True if any corner of bb2 is in bb1 
+                               or if any corner of bb1 is in bb2.
+      That should be a valid overlap test, no?
+  """
+  x1,y1,x2,y2 = bb2
+  if bbox_inside(bb1, [x1,y1]): return True
+  if bbox_inside(bb1, [x1,y2]): return True
+  if bbox_inside(bb1, [x2,y2]): return True
+  if bbox_inside(bb1, [x2,y1]): return True
+  x1,y1,x2,y2 = bb1
+  if bbox_inside(bb2, [x1,y1]): return True
+  if bbox_inside(bb2, [x1,y2]): return True
+  if bbox_inside(bb2, [x2,y2]): return True
+  if bbox_inside(bb2, [x2,y1]): return True
+  return False
+
+def in_bbox_interpolated(bbox, word):
+  """calculate an approximation of the on-page position of word[0].
+     We use the known coordinates word[3]['x,y,w,h] of the text word[1], 
+     in which word[0] is contained as a substring starting at position word[2].
+     A simple constant width character interpolation is done for speed.
+     A more excat interpolation is possible using the font metrics word[3]['f']
+  """
+  if bbox is none: 
+    return True  # the undefined bounding box includes all
+
+  # coordinates of word[1]
+  x1 = word[3]['x']
+  x2 = word[3]['w'] + x1
+  y1 = word[3]['y']
+  y2 = word[3]['h'] + y1
+  if bbox_inside(bbox, [x1,y1,x2,y2]):
+    return True # fast track. All of word[1] is in, so the word[0] is also in.
+
+  if not len(word[1]): return False     # zero-size and not completly in, means out.
+
+  i = word[2]
+  l = len(word[0])
+  char_width = float(x2-x1)/len(word[1])
+  x1 += i * char_width
+  x2 = x1 + l * char_width
+  # Given the fast track above, maybe for the rest, a
+  # correct font metrics interpolation is affordable?
+  # The impact is linear with the input text size, beware.
+  # Currently impact of metrics calculation is only linar with the 
+  # result set size.
+  if bbox_overlap(bbox, [x1,y1,x2,y2]):
+    return True         
+  return False
   
-def textline2wordlist(text, context):
+def textline2wordlist(text, context, bbox=None):
   """returns a list of 4-element lists like this:
      [word, text, idx, context]
      where the word was found in the text string at offset idx.
@@ -386,6 +457,10 @@ def textline2wordlist(text, context):
      comparable using only the "word" which is the first element of the four. 
      Thus our wordlists work well as sequences with difflib, although they also
      transport all the context to compute exact page positions later.
+
+     A bbox (x1,y1, x2, y2) with x1 < x2, y1 < y2 can be specified to prefilter
+     the wordlist. Only words that are (at least partially) inside the bbox
+     will be returned.
   """
 
   wl = []
@@ -395,7 +470,9 @@ def textline2wordlist(text, context):
     if len(tl)==0: break
     head = tl.pop(0)
     if len(head):
-      wl.append(DecoratedWord([head, text, idx, context]))
+      word = [head, text, idx, context]
+      if in_bbox_interpolated(bbox, word):
+        wl.append(DecoratedWord(word))
     if len(tl)==0: break
     sep = tl.pop(0)
     idx += len(sep)+len(head)
@@ -404,6 +481,8 @@ def textline2wordlist(text, context):
 def xml2wordlist(dom, first_page=None, last_page=None, margins=None):
   """input: a dom tree as generated by pdftohtml -xml.
      first_page, last_page start counting at 0.
+     If margins is not None, the coordinates of all words are filtered against 
+     a bounding box constructed by reducing the page box.
      output: a wordlist with all the metadata so that the exact coordinates
              of each word can be calculated.
   """
@@ -425,6 +504,13 @@ def xml2wordlist(dom, first_page=None, last_page=None, margins=None):
       next
     p_nr += 1
     p_h = float(p.attrib['height'])
+    p_w = float(p.attrib['width'])
+
+    # default bounding box is entire page:
+    # bbox ordering is x1,y1, x2, y2 where x1,y1 are the smaller values.
+    p_bbox = (0, 0, p_w, p_h)
+    if margins is not None:
+      p_bbox = (margins['n'], margins['w'], p_w - margins['e'], p_h - margins['s'])
 
     for e in p.findall('text'):
       # <text font="0" height="19" left="54" top="107" width="87"><b>Features</b></text>
@@ -440,7 +526,7 @@ def xml2wordlist(dom, first_page=None, last_page=None, margins=None):
       if   float(y) > 0.66*p_h: l = 'b'
       elif float(y) > 0.33*p_h: l = 'c'
       else:                     l = 't'
-      wl += textline2wordlist(text, {'p':p_nr, 'l':l, 'x':x, 'y':y, 'w':w, 'h':h, 'f':f})
+      wl += textline2wordlist(text, {'p':p_nr, 'l':l, 'x':x, 'y':y, 'w':w, 'h':h, 'f':f}, p_bbox)
     #pprint(wl)
   print("xml2wordlist: %d pages" % (p_nr-int(first_page)))
   return wl
@@ -504,7 +590,7 @@ def main():
                             Default: " + str(parser.def_marks))
   parser.add_argument("-M", "--margins", metavar="N,E,W,S", default=parser.def_margins,
                       help="specify margin space to ignore on each page. A margin width is expressed \
-                      in units of 100dpi. Specify four numbers in the order north,east,west,south. Default: "\
+                      in units of ca. 100dpi. Specify four numbers in the order north,east,west,south. Default: "\
                       + str(parser.def_margins))
   parser.add_argument("-f", "--features", metavar="FEATURES", default=parser.def_features,
                       help="specify how to mark. Allowed values are 'highlight', 'changebar', 'popup', \
