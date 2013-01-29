@@ -1,4 +1,4 @@
-VER=1.1b
+VER=1.2
 refresh=
 
 all: test

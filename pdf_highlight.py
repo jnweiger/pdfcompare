@@ -419,14 +419,14 @@ def in_bbox_interpolated(bbox, word):
      A simple constant width character interpolation is done for speed.
      A more excat interpolation is possible using the font metrics word[3]['f']
   """
-  if bbox is none: 
+  if bbox is None: 
     return True  # the undefined bounding box includes all
 
   # coordinates of word[1]
-  x1 = word[3]['x']
-  x2 = word[3]['w'] + x1
-  y1 = word[3]['y']
-  y2 = word[3]['h'] + y1
+  x1 = float(word[3]['x'])
+  x2 = float(word[3]['w']) + x1
+  y1 = float(word[3]['y'])
+  y2 = float(word[3]['h']) + y1
   if bbox_inside(bbox, [x1,y1,x2,y2]):
     return True # fast track. All of word[1] is in, so the word[0] is also in.
 
