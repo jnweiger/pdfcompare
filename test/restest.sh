@@ -5,7 +5,8 @@
 ###DONE diff geht nicht->'grep -a /Annot' vergleichen, pdftotext rpobieren o valides pdf
 # eventuell graphik rendern + vergleichen (wie pdf nach graphik?) 
 #
-
+## run once with refresh=yes, after you verified the test suite runs ok.
+#refresh=yes
 
 testpdf()
 {
@@ -17,7 +18,8 @@ pdftk newpdf.pdf dump_data > /dev/null
 assertTrue "Pdftest returned !=0" "[[ $? -eq 0 ]]"
 python imgcmp.py oldpdf.pdf newpdf.pdf 0.5
 assertTrue "Pdftest returned !=0" "[[ $? -eq 0 ]]"
-rm newpdf.pdf
+test -n "$refresh" && mv newpdf.pdf oldpdf.pdf
+rm -f newpdf.pdf
 }
 
 testascii()
@@ -30,7 +32,8 @@ pdftk newascii.pdf dump_data > /dev/null
 assertTrue "Asciitest returned !=0" "[[ $? -eq 0 ]]"
 python imgcmp.py oldascii.pdf newascii.pdf 0.5
 assertTrue "Asciitest returned !=0" "[[ $? -eq 0 ]]"
-rm newascii.pdf
+test -n "$refresh" && mv newascii.pdf oldascii.pdf
+rm -f newascii.pdf
 }
 
 testxml()
@@ -43,6 +46,7 @@ pdftk newxml.pdf dump_data > /dev/null
 assertTrue "Xmltest returned !=0" "[[ $? -eq 0 ]]"
 python imgcmp.py oldxml.pdf newxml.pdf 0.5
 assertTrue "Xmltest returned !=0" "[[ $? -eq 0 ]]"
+test -n "$refresh" && mv newxml.pdf oldxml.pdf
 rm newxml.pdf
 }
 
@@ -56,7 +60,8 @@ pdftk newsearch.pdf dump_data > /dev/null
 assertTrue "Searchtest returned !=0" "[[ $? -eq 0 ]]"
 python imgcmp.py oldsearch.pdf newsearch.pdf 0.5
 assertTrue "Searchtest returned !=0" "[[ $? -eq 0 ]]"
-rm newsearch.pdf
+test -n "$refresh" && mv newsearch.pdf oldsearch.pdf
+rm -f newsearch.pdf
 }
 
 
