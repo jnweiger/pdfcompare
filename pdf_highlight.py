@@ -55,6 +55,11 @@
 #                        1.4 to 1.2 for less overlap.
 # 2013-01-29, V1.2  jw - added bbox_overlap(), bbox_inside() in_bbox_interpolated()
 #                        to implement margin feature.
+# 2013-01-31, V1.3  jw - added hyphenation merge inside opcodes_post_proc().
+#                      - added option strict, to suppress zap_letter_spacing() and 
+#                        to prevent hyphenation merge.
+#                      - removed needless parameter tag from markword()
+#                      - started dummy implementation of --spell.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -74,7 +79,7 @@
 # Compatibility for older Python versions
 from __future__ import with_statement
 
-__VERSION__ = '1.2'
+__VERSION__ = '1.3'
 
 from cStringIO import StringIO
 from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
@@ -100,6 +105,7 @@ page_ref_magic = "675849302 to page "     # a token we use to patch the page obj
 page_ref_plain = "to page "     # this will be visible as a popup on navigation marks.
 
 highlight_height = 1.2  # some fonts cause too much overlap with 1.4
+                        # 1.2 is often not enough to look symmetric.
 
 # from pdfminer.fontmetrics import FONT_METRICS
 # FONT_METRICS['Helvetica'][1]['W']
@@ -244,9 +250,10 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
   for m in marks['rect']:
     canvas.setFillColor(Color(m['c'][0],m['c'][1],m['c'][2], alpha=trans))
     canvas.setStrokeColor(Color(m['c'][0],m['c'][1],m['c'][2], alpha=0.5*trans))
-    # m = {'h': 23, 'c': [1,0,1], 't': 'Popular', 'w': 76.56716417910448, 'x': 221.0, 'y': 299}
+    # m = {'h': 23, 'c': [1,0,1], 't': 'equ', 'w': 76.56716417910448, 'x': 221.0, 'y': 299}
     (x,y,w,h) = (m['x'], m['y'], m['w'], m['h'])
     if w < min_w:
+      # normally happens with m['t'] == 'del'
       if debug > 1: print("min_w:%s (%s)" % (min_w, w))
       if highlight:
         # delete marker: two horizontal and one vertical bar.
@@ -257,12 +264,14 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
       if anno:
         anno_popup(canvas, x2c(x),y2c(y),    w2c(min_w),h2c(h*highlight_height), m)
     else:
-      # multiply height h with 1.2 to add some top padding, similar
-      # to the bottom padding that is automatically added
+      # multiply height h with (highlight_height -- ca 1.2) to add some top 
+      # padding, similar to the bottom padding that is automatically added
       # due to descenders extending across the font baseline.
-      # 1.2 is often not enough to look symmetric.
       if highlight:
-        canvas.rect(x2c(x),y2c(y),    w2c(w),h2c(h*highlight_height), fill=1, stroke=0)
+        if m['t'] == 'spl':
+          canvas.rect(x2c(x),y2c(y),    w2c(w),h2c(h*0.2), fill=1, stroke=0) # underline only
+        else:
+          canvas.rect(x2c(x),y2c(y),    w2c(w),h2c(h*highlight_height), fill=1, stroke=0)
       if anno:
         anno_popup(canvas, x2c(x),y2c(y),    w2c(w),h2c(h*highlight_height), m)
 
@@ -500,9 +509,9 @@ def xml2wordlist(dom, first_page=None, last_page=None, margins=None):
     if not last_page is None:
       if p_nr > int(last_page):
         break
-    if p_nr < int(first_page):
-      next
     p_nr += 1
+    if p_nr <= int(first_page):
+      continue
     p_h = float(p.attrib['height'])
     p_w = float(p.attrib['width'])
 
@@ -577,7 +586,7 @@ def main():
   parser.add_argument("-o", "--output", metavar="OUTFILE", default=parser.def_output,
                       help="write output to FILE; default: "+parser.def_output)
   parser.add_argument("-s", "--search", metavar="WORD_REGEXP", 
-                      help="highlight only WORD_REGEXP")
+                      help="highlight WORD_REGEXP")
   parser.add_argument("-d", "--decrypt-key", metavar="DECRYPT_KEY", default=parser.def_decrypt_key,
                       help="open an encrypted PDF; default: KEY='"+parser.def_decrypt_key+"'")
   parser.add_argument("-c", "--compare-text", metavar="OLDFILE",
@@ -602,6 +611,10 @@ def main():
                       help="do not write an output file; print diagnostics only; default: write output file as per -o")
   parser.add_argument("-i", "--nocase", default=False, action="store_true",
                       help="make -s case insensitive; default: case sensitive")
+  parser.add_argument("--strict", default=False, action="store_true",
+                      help="show really all differences; default: ignore removed hyphenation; ignore character spacing inside a word")
+  parser.add_argument("--spell", "--spell-check", default=False, action="store_true",
+                      help="run the text body of the (new) pdf through hunspell. Unknown words are underlined.")
   parser.add_argument("-L", "--last-page", metavar="LAST_PAGE",
                       help="limit pages processed; this counts pages, it does not use document \
                       page numbers; see also -F; default: all pages")
@@ -657,8 +670,8 @@ def main():
   if args.compare_text is None and args.infile2 is not None:
     args.compare_text,args.infile = args.infile,args.infile2
 
-  if args.search is None and args.compare_text is None:
-    parser.exit("Oops. Nothing to do. Specify either -s or -c or two input files")
+  if args.search is None and args.compare_text is None and args.spell is None:
+    parser.exit("Oops. Nothing to do. Specify either -s or --spell or -c or two input files")
 
   if not os.access(args.infile, os.R_OK):
     parser.exit("Cannot read input file: %s" % args.infile)
@@ -728,6 +741,8 @@ def main():
       last_page=last_page,
       mark_ops=args.mark,
       margins=margins,
+      strict=args.strict,
+      spell_check=args.spell,
       ext={'a': {'c':args.search_colors['A']},
            'd': {'c':args.search_colors['D']},
            'c': {'c':args.search_colors['C']},
@@ -778,7 +793,7 @@ def main():
   for i in range(first_page,last_page+1):
     if args.exclude_irrelevant_pages and len(page_marks[i]['rect']) == 0:
       continue
-    hitdetails = {'equ':0, 'add':0, 'del':0, 'chg':0 }
+    hitdetails = {'equ':0, 'add':0, 'del':0, 'chg':0, 'spl':0 }
     for r in page_marks[i]['rect']:
       tag = r.get('t','unk')
       if not tag in hitdetails:
@@ -786,7 +801,7 @@ def main():
       hitdetails[tag] += 1
       total_hits += 1
     hits_fmt = ''
-    for det,ch in (['add','+'], ['del','-'], ['chg','~'], ['equ','=']):
+    for det,ch in (['add','+'], ['del','-'], ['chg','~'], ['equ','='], ['spl','!']):
       if hitdetails[det]: hits_fmt += '%s%d' % (ch,hitdetails[det])
 
     print(" page %d: %d hits %s" % (page_marks[i]['nr'], len(page_marks[i]['rect']), hits_fmt))
@@ -924,13 +939,18 @@ def zap_letter_spacing(text):
   #print("zap_letter_spacing('%s') -> '%s'" % (text,t))
   return t
 
-def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, first_page=None, last_page=None, mark_ops="D,A,C",margins=None):
+def spell_check_word(w):
+  if w.lower() in ('files', 'nuernberg', 'ca.'):
+    return "dummy implementation. marks the words 'files', 'Nuernberg' and 'ca.'"
+  return None
+
+def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, first_page=None, last_page=None, mark_ops="D,A,C", margins=None, strict=False, spell_check=False):
   """traverse the XML dom tree, (which is expected to come from pdf2html -xml)
      find all occurances of re_pattern on all pages, returning rect list for 
      each page, giving the exact coordinates of the bounding box of all 
      occurances. Font metrics are used to interpolate into the line fragments 
      found in the dom tree.
-     Keys and values from ext['e'] are merged into the DecoratedWord output for pattern matches.
+     Keys and values from ext['e'] are merged into the DecoratedWord output for pattern matches and spell check findings.
      If re_pattern is None, then wordlist is used instead. 
      Keys and values from ext['a'], ext['d'], or ext['c'] respectively are merged into 
      the DecoratedWord output for added, deleted, or changed texts (respectivly).
@@ -938,12 +958,12 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
   """
 
   ######
-  def markword(r_dict, wl, idx, tag, attr, fontinfo):
+  def markword(r_dict, wl, idx, attr, fontinfo):
     w = wl[idx]
     p_nr = w[3].get('p','?')
     l = len(w[0])
     off = w[2]
-    if tag == 'delete': 
+    if attr['t'] == 'del':
       # l=0 special case:
       # very small marker length triggers extenders.
       # decrement idx if idx > 0.
@@ -1008,10 +1028,12 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
     ops[op[0].lower()] = 1
 
   p_rect_dict = {}   # indexed by page numbers, then lists of marks
-  if wordlist:
-    # generate our wordlist too, so that we can diff against the given wordlist.
+  if wordlist or spell_check:
+    # generate our wordlist too, so that we can diff against the given wordlist or spellcheck.
     wl_new = xml2wordlist(dom, first_page, last_page, margins=margins)
+  if wordlist:
     s = SequenceMatcher(None, wordlist, wl_new, autojunk=False)
+    print "SequenceMatcher done"
 
     def opcodes_post_proc(iter_list):
       ## Often small pieces are replaced by big pieces or vice versa.
@@ -1026,6 +1048,15 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         if tag == "replace":
           i_len = i2-i1
           j_len = j2-j1
+          if not strict and i_len == 2 and j_len == 1:
+            if debug:
+              print "not strict: check '%s','%s' -> '%s'" % (wordlist[i1][0],wordlist[i1+1][0],wl_new[j1][0])
+            # check, if we can optimize it away
+            m = re.match("(.*)-$", wordlist[i1][0])
+            if m and m.group(1) + wordlist[i1+1][0] == wl_new[j1][0]:
+              if debug:
+                print "not strict: ign '%s','%s' -> '%s'" % (wordlist[i1][0],wordlist[i1+1][0],wl_new[j1][0])
+              continue      # "foo-", "bar" became "foobar"
           if i_len < j_len:
             # print("getting longer by %d" % (j_len-i_len))
             yield ('replace',  i1,i2, j1,j1+i_len)
@@ -1077,7 +1108,18 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         if j >= len(wl_new):    # this happens with autojunk=False!
           print("end of wordlist reached: %d" % j)
           break
-        markword(p_rect_dict, wl_new, j, tag, attr, fontinfo)
+        markword(p_rect_dict, wl_new, j, attr, fontinfo)
+
+  if spell_check:
+    idx = 0
+    for word in wl_new:
+      result = spell_check_word(word[0])
+      if result is not None:
+        attr = ext['e'].copy()
+        attr['o'] = result
+        attr['t'] = "spl"
+        markword(p_rect_dict, wl_new, idx, attr, fontinfo)
+      idx += 1
 
   # End of wordlist code.
   # We have now p_rect_dict preloaded with the wordlist marks or empty.
@@ -1098,7 +1140,8 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         p_finfo = fontinfo[p_nr]
         text = ''
         for t in e.itertext(): text += t
-        text = zap_letter_spacing(text)
+        if not strict:
+          text = zap_letter_spacing(text)
   
         #pprint([e.attrib, text])
         #print("search (%s)" % re_pattern)
