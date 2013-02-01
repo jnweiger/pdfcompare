@@ -1,9 +1,8 @@
 TODO
 
-* feature:
-  pipe the wordlist through hunspell, if hunspell is available.
-  use search-highlights to mark all words for which hunspell has spelling 
-  suggestions. 
+* hunspell issues:
+  - piping is dead slow. Python uses single byte ready, just like java did in the 80ies:
+  - the result is random words. Does not look like a spell checker at all.
 
 * feature: logfile generator.
   produce a json/xml/csv/txt file describing the diffs, -s word locations 
@@ -60,3 +59,8 @@ DONE:
   of the document contents stream.
   --feature margin shall draw the margin area as shaded gray, so that we know
   where we are.
+
+* feature:
+  pipe the wordlist through hunspell, if hunspell is available.
+  use search-highlights to mark all words for which hunspell has spelling 
+  suggestions. 

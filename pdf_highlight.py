@@ -59,7 +59,7 @@
 #                      - added option strict, to suppress zap_letter_spacing() and 
 #                        to prevent hyphenation merge.
 #                      - removed needless parameter tag from markword()
-#                      - started dummy implementation of --spell.
+#                      - finished an implementation of --spell using hunspell in pipe()  
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -225,7 +225,11 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
     # need ascii here. anything else triggers
     # UnicodeDecodeError: 'utf16' codec can't decode bytes in position 5484-5485: illegal UTF-16 surrogate
     # from File "/usr/lib/python2.7/site-packages/pyPdf/generic.py", line 248, in createStringObject
-    text = text.encode('ascii', errors='replace')
+    try:
+      # this can fail with: 'ascii' codec can't decode byte 0xe2
+      text = text.encode('ascii', errors='replace')
+    except:
+      text = "text.encode('ascii', errors='ignore')"
     canv.linkURL(text, (x, y, x+w, y+h), relative=0) # , Border="[ 1 1 1 ]")
   
   cb_x = (cb_x-0.5*cb_w) * marks['w']     # relative to pdf page width 
@@ -661,7 +665,7 @@ def main():
         name = name[0].upper()
         args.search_colors[name] = [float(r),float(g),float(b)]
 
-  margins = parseMargins(args.margins, args.search_colors['M'])
+  margins = parse_margins(args.margins, args.search_colors['M'])
 
   ## TEST this, fix or disable: they should work well together:
   # if args.search and args.compare_text:
@@ -861,7 +865,7 @@ def main():
     sys.exit(0)
 
 
-def parseMargins(text,color):
+def parse_margins(text,color):
   a = text.split(',')
   if len(a) < 4: a.extend((a[0],a[0],a[0]))
   return {'n':float(a[0]), 'e':float(a[1]), 
@@ -1111,12 +1115,24 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         markword(p_rect_dict, wl_new, j, attr, fontinfo)
 
   if spell_check:
+    h = Hunspell()
+    word_set = set()
+    for word in wl_new:
+      word_set.add(word[0])
+    bad_word_dict = dict()
+    print("%d words to check" % len(word_set))
+    for word in word_set:
+      r = h.check(word)
+      if r is not None:
+        bad_word_dict[word] = r
+    print("checked: %d bad" % len(bad_word_dict))
+      
     idx = 0
     for word in wl_new:
-      result = spell_check_word(word[0])
-      if result is not None:
+      result = h.check(word[0])
+      if word[0] in bad_word_dict:
         attr = ext['e'].copy()
-        attr['o'] = result
+        attr['o'] = ", ".join(bad_word_dict[word[0]])
         attr['t'] = "spl"
         markword(p_rect_dict, wl_new, idx, attr, fontinfo)
       idx += 1
@@ -1169,6 +1185,31 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
                  'h':float(p.attrib['height']), 'w':float(p.attrib['width']),
                  'x':float(p.attrib['left']), 'y':float(p.attrib['top'])})
   return pages_a
+
+
+class Hunspell():
+    def __init__(self):
+        self.cmd = ['hunspell', '-i', 'utf-8']
+        try:
+          self.proc = subprocess.Popen(self.cmd, shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        except OSError as e:
+          self.proc = "%s failed: errno=%d %s" % (self.cmd, e.errno, e.strerror)
+          raise OSError(self.proc)
+        self.version = self.proc.stdout.readline().rstrip()
+        
+    def check(self, word):
+        # It is horrible. The words already know that they contain utf8-glyphs,
+        # the error message says it: 'ascii' codec can't encode character u'\xdc'.
+        # But write still just allows 7-bit ascii, unless I say encode('utf8') before 
+        # calling write. How does it know the difference? 
+        self.proc.stdin.write((word+"\n").encode('utf8'))
+        while True:
+            output = self.proc.stdout.readline().rstrip()
+            if len(output): break
+        if output == '*': return None
+        if output[0] != '&': return output
+        a = output.split(': ')
+        return a[1].split(', ')
 
 if __name__ == "__main__": main()
 
