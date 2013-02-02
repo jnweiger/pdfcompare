@@ -2,8 +2,7 @@ TODO
 
 * hunspell issues:
   - python-HunspellPure should be a separate module. Split it.
-  - cannot choose language or spelling dictionary with --spell, 
-    improve option parser.
+  - we artificially limit to [A-Z_-]+ for words. This is bad for german umlauts.
 
 * feature: logfile generator.
   produce a json/xml/csv/txt file describing the diffs, -s word locations 
