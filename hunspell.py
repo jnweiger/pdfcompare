@@ -1,20 +1,27 @@
 import os,subprocess,re
-from pprint import pprint
 
 class Hunspell():
+    """A pure python module to interface with hunspell.
+       It was written as a replacement for the hunspell module from
+       http://code.google.com/p/pyhunspell/, which appears to be in unmaintained.
+       and more difficult to use, due to lack of examples and documentation.
+    """
     def __init__(self, dicts=['en_US']):
         self.cmd = ['hunspell', '-i', 'utf-8', '-a']
-        if len(dicts): self.cmd += ['-d', ','.join(dicts)]
+        self.dicts = dicts
         self.proc = None
-        self.attr = {}
+        self.attr = None
         self.buffer = ''
 
     def _start(self):
+        cmd = self.cmd
+        if self.dicts is not None and len(self.dicts): 
+            cmd += ['-d', ','.join(self.dicts)]
         try:
-          self.proc = subprocess.Popen(self.cmd, shell=False, 
+            self.proc = subprocess.Popen(cmd, shell=False, 
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         except OSError as e:
-            self.proc = "%s failed: errno=%d %s" % (self.cmd, e.errno, e.strerror)
+            self.proc = "%s failed: errno=%d %s" % (cmd, e.errno, e.strerror)
             raise OSError(self.proc)
         header = ''
         while True:
@@ -72,8 +79,21 @@ class Hunspell():
                 self.attr[header].append(line)
         return self.attr
  
+    def dicts(self,dicts=None):
+        """returns or sets the dictionaries that hunspell shall try to use"""
+        if dicts is not None:
+            self.dicts = dicts
+        return self.dicts
+
     def list_dicts(self):
-        self._load_attr()
+        """query hunspell about the available dictionaries.
+           Returns a key value dict where keys are short names, and values 
+           are path names. You can pick some or all of the returned keys,
+           and use the list (or one) as an argument to 
+           the next Hunspell() instance, or as an argument 
+           to the dicts() method.
+        """
+        if self.attr is None: self._load_attr()
         r = {}
         for d in self.attr['AVAILABLE DICTIONARIES']:
             words = d.split('/')
@@ -81,13 +101,30 @@ class Hunspell():
         return r
  
     def dict_search_path(self):
-        self._load_attr()
+        """returns a list of pathnames, actually used by hunspell to load 
+           spelling dictionaries from.
+        """
+        if self.attr is None: self._load_attr()
         r = []
         for d in self.attr['SEARCH PATH']:
             r += d.split(':')
         return r
  
+    def dicts_loaded(self):
+        """query the spelling dictionaries that will actually be used for 
+           the next check_words() call.
+        """
+        if self.attr is None: self._load_attr()
+        return self.attr['LOADED DICTIONARY']
+ 
     def check_words(self, words):
+        """takes a list of words as parameter, and checks them against the 
+           loaded spelling dictionaries. A key value dict is returned, where
+           every key represents a word that was not found in the 
+           spelling dictionaries. Values are lists of correction suggestions.
+           check_words() is implemented by calling the hunspell binary in pipe mode.
+           This is fairly robust, but not optimized for efficiency.
+        """
         if self.proc is None:
             self._start()
         childpid = os.fork()
@@ -105,24 +142,6 @@ class Hunspell():
             line = line.rstrip()
             if not len(line) or line[0] in '*+-': continue
  
-    def check_words(self, words):
-        if self.proc is None:
-            self._start()
-        childpid = os.fork()
-        if childpid == 0:
-            for w in words:
-                self.proc.stdin.write(("^"+w+"\n").encode('utf8'))
-            os._exit(0)
-        self.proc.stdin.close()
-        bad_words = {}
- 
-        while True:
-            line = self._readline()
-            if len(line) == 0:
-                break
-            line = line.rstrip()
-            if not len(line) or line[0] in '*+-': continue
-
             if line[0] == '#': 
                 car = line.split(' ')
                 bad_words[car[1]] = []          # no suggestions
@@ -138,9 +157,11 @@ class Hunspell():
         return bad_words
 
  
-h = Hunspell()
-pprint(h.check_words(["ppppp", '123', '', 'gorkicht', 'gemank', 'haus', '']))
-pprint(h.check_words(["Radae", 'blood', 'mensch', 'green', 'blea', 'fork']))
-pprint(h.list_dicts())
-pprint(h.dict_search_path())
-pprint(h.version)
+if __name__ == "__main__": 
+    from pprint import pprint
+    h = Hunspell()
+    pprint(h.list_dicts())
+    pprint(h.dict_search_path())
+    pprint(h.check_words(["ppppp", '123', '', 'gorkicht', 'gemank', 'haus', '']))
+    pprint(h.check_words(["Radae", 'blood', 'mensch', 'green', 'blea', 'fork']))
+    pprint(h.version)
