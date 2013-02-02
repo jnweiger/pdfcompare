@@ -59,7 +59,9 @@
 #                      - added option strict, to suppress zap_letter_spacing() and 
 #                        to prevent hyphenation merge.
 #                      - removed needless parameter tag from markword()
-#                      - finished an implementation of --spell using hunspell in pipe()  
+#                      - added an implementation of --spell using hunspell in pipe()  
+# 2013-02-02, V1.4  jw - New hunspell.py module created, and incorporated.
+#                        The earlier implementation used a premature pipe protocol.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -79,12 +81,13 @@
 # Compatibility for older Python versions
 from __future__ import with_statement
 
-__VERSION__ = '1.3'
+__VERSION__ = '1.4'
 
 from cStringIO import StringIO
 from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import Color
+import urllib   # used when normal encode fails.
 
 import re, time
 from pprint import pprint
@@ -93,6 +96,8 @@ import sys, os, subprocess
 from argparse import ArgumentParser
 import pygame.font as PGF
 from difflib import SequenceMatcher
+# FIXME: class Hunspell should be loaded as a module
+# import HunspellPure
 
 # I fail to understand the standard encode() decode() methods.
 # But the codecs module always does what I mean.
@@ -229,7 +234,10 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
       # this can fail with: 'ascii' codec can't decode byte 0xe2
       text = text.encode('ascii', errors='replace')
     except:
-      text = "text.encode('ascii', errors='ignore')"
+      # I cannot even print the below failed message, it dies in self.encode()
+      #print "failed to encode text: '%s'" % text
+      #text = "text.encode('ascii', errors='ignore')"
+      text = urllib.quote_plus(text)
     canv.linkURL(text, (x, y, x+w, y+h), relative=0) # , Border="[ 1 1 1 ]")
   
   cb_x = (cb_x-0.5*cb_w) * marks['w']     # relative to pdf page width 
@@ -339,6 +347,18 @@ def pdf2xml(parser, infile, key=''):
   return dom
 
 class DecoratedWord(list):
+  """Usage in pdfcompare is:
+     word[0] is the word itself; word[1] is a longer string, where word[0] is
+     found; word[2] is the index position into word[1], and word[3] is a set of
+     attributes, as follows:
+     Elements of word[3] are:
+     {'f': '3', 's':'stem', 'h': '10', 'l': 'b', 'p': 2, 'w': '151', 'x': '540', 'y': '1209'}
+     Where f is the font index; l is the location on the page as in t(op),
+     m(iddle), b(ottom); p is the physical page number; x,y,w,h define the
+     bounding box of word[1]; and s is a substring (without digits or
+     punctuation) used for spell checking.
+  """
+
   def __eq__(a,b):
     return a[0] == b[0]
   def __hash__(self):
@@ -1033,7 +1053,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
 
   p_rect_dict = {}   # indexed by page numbers, then lists of marks
   if wordlist or spell_check:
-    # generate our wordlist too, so that we can diff against the given wordlist or spellcheck.
+    # generate our wordlist too, so that we can diff against the given wordlist or spell_check.
     wl_new = xml2wordlist(dom, first_page, last_page, margins=margins)
   if wordlist:
     s = SequenceMatcher(None, wordlist, wl_new, autojunk=False)
@@ -1118,21 +1138,27 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
     h = Hunspell()
     word_set = set()
     for word in wl_new:
-      word_set.add(word[0])
-    bad_word_dict = dict()
+      m = re.search('([a-z_-]{3,})', word[0], re.I)
+      if m:
+        stem = m.group(1).lower()
+        word_set.add(stem)
+        if not 's' in word[3]: word[3]['s'] = {}
+        word[3]['s'][word[2]] = stem
     print("%d words to check" % len(word_set))
-    for word in word_set:
-      r = h.check(word)
-      if r is not None:
-        bad_word_dict[word] = r
+    bad_word_dict = h.check_words(word_set) 
     print("checked: %d bad" % len(bad_word_dict))
+    if debug > 1:
+        pprint(['bad_word_dict: ', bad_word_dict])
       
     idx = 0
     for word in wl_new:
-      result = h.check(word[0])
-      if word[0] in bad_word_dict:
+      if 's' in word[3] and \
+        word[2] in word[3]['s'] and \
+        word[3]['s'][word[2]] in bad_word_dict:
         attr = ext['e'].copy()
-        attr['o'] = ", ".join(bad_word_dict[word[0]])
+        suggest = bad_word_dict[word[3]['s'][word[2]]]
+        if not len(suggest): suggest = ['???']
+        attr['o'] = "("+word[3]['s'][word[2]]+") -> " + (", ".join(suggest))
         attr['t'] = "spl"
         markword(p_rect_dict, wl_new, idx, attr, fontinfo)
       idx += 1
@@ -1188,28 +1214,163 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
 
 
 class Hunspell():
-    def __init__(self):
-        self.cmd = ['hunspell', '-i', 'utf-8']
+    """A pure python module to interface with hunspell.
+       It was written as a replacement for the hunspell module from
+       http://code.google.com/p/pyhunspell/, which appears to be in unmaintained.
+       and more difficult to use, due to lack of examples and documentation.
+    """
+    def __init__(self, dicts=['en_US']):
+        self.cmd = ['hunspell', '-i', 'utf-8', '-a']
+        self.dicts = dicts
+        self.proc = None
+        self.attr = None
+        self.buffer = ''
+
+    def _start(self):
+        cmd = self.cmd
+        if self.dicts is not None and len(self.dicts): 
+            cmd += ['-d', ','.join(self.dicts)]
         try:
-          self.proc = subprocess.Popen(self.cmd, shell=False, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+            self.proc = subprocess.Popen(cmd, shell=False, 
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         except OSError as e:
-          self.proc = "%s failed: errno=%d %s" % (self.cmd, e.errno, e.strerror)
-          raise OSError(self.proc)
-        self.version = self.proc.stdout.readline().rstrip()
-        
-    def check(self, word):
-        # It is horrible. The words already know that they contain utf8-glyphs,
-        # the error message says it: 'ascii' codec can't encode character u'\xdc'.
-        # But write still just allows 7-bit ascii, unless I say encode('utf8') before 
-        # calling write. How does it know the difference? 
-        self.proc.stdin.write((word+"\n").encode('utf8'))
+            self.proc = "%s failed: errno=%d %s" % (cmd, e.errno, e.strerror)
+            raise OSError(self.proc)
+        header = ''
         while True:
-            output = self.proc.stdout.readline().rstrip()
-            if len(output): break
-        if output == '*': return None
-        if output[0] != '&': return output
-        a = output.split(': ')
-        return a[1].split(', ')
+            more = self.proc.stdout.readline().rstrip()
+            if len(more) > 5 and more[0:5] == '@(#) ':    # version line with -a
+                self.version = more[5:]
+                break
+            elif len(more) > 9 and more[0:9] == 'Hunspell ': # version line w/o -a
+                self.version = more
+                break
+            else:
+                header += more  # stderr should be collected here. It does not work
+        if len(header): self.header = header
+        self.buffer = ''
+        
+    def _readline(self):
+        # python readline() is horribly stupid on this pipe. It reads single
+        # byte, just like java did in the 1980ies. Sorry, this is not
+        # acceptable in 2013.
+        if self.proc is None:
+            raise Error("Hunspell_readline before _start")
+        while True:
+            idx = self.buffer.find('\n')
+            if idx < 0:
+                more = self.proc.stdout.read()
+                if not len(more):
+                    r = self.buffer
+                    self.buffer = ''
+                    return r
+                self.buffer += more
+            else:
+                break
+        r = self.buffer[0:idx+1]
+        self.buffer = self.buffer[idx+1:]
+        return r
+
+    def _load_attr(self):
+        try:
+            p = subprocess.Popen(self.cmd + ['-D'], shell=False, 
+                stdin=open('/dev/null'), stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
+        except OSError as e:
+            raise OSError("%s failed: errno=%d %s" % (self.cmd + ['-D'], e.errno, e.strerror))
+        self.attr = {}
+        header=''
+        while True:
+            line = p.stdout.readline().rstrip()
+            if not len(line):
+                break
+            # AVAILABLE DICTIONARIES (path is not mandatory for -d option):
+            m = re.match('([A-Z]+\s[A-Z]+).*:$', line)
+            if m:
+                header = m.group(1)
+                self.attr[header] = []
+            elif len(header):
+                self.attr[header].append(line)
+        return self.attr
+ 
+    def dicts(self,dicts=None):
+        """returns or sets the dictionaries that hunspell shall try to use"""
+        if dicts is not None:
+            self.dicts = dicts
+        return self.dicts
+
+    def list_dicts(self):
+        """query hunspell about the available dictionaries.
+           Returns a key value dict where keys are short names, and values 
+           are path names. You can pick some or all of the returned keys,
+           and use the list (or one) as an argument to 
+           the next Hunspell() instance, or as an argument 
+           to the dicts() method.
+        """
+        if self.attr is None: self._load_attr()
+        r = {}
+        for d in self.attr['AVAILABLE DICTIONARIES']:
+            words = d.split('/')
+            r[words[-1]] = d
+        return r
+ 
+    def dict_search_path(self):
+        """returns a list of pathnames, actually used by hunspell to load 
+           spelling dictionaries from.
+        """
+        if self.attr is None: self._load_attr()
+        r = []
+        for d in self.attr['SEARCH PATH']:
+            r += d.split(':')
+        return r
+ 
+    def dicts_loaded(self):
+        """query the spelling dictionaries that will actually be used for 
+           the next check_words() call.
+        """
+        if self.attr is None: self._load_attr()
+        return self.attr['LOADED DICTIONARY']
+ 
+    def check_words(self, words):
+        """takes a list of words as parameter, and checks them against the 
+           loaded spelling dictionaries. A key value dict is returned, where
+           every key represents a word that was not found in the 
+           spelling dictionaries. Values are lists of correction suggestions.
+           check_words() is implemented by calling the hunspell binary in pipe mode.
+           This is fairly robust, but not optimized for efficiency.
+        """
+        if self.proc is None:
+            self._start()
+        childpid = os.fork()
+        if childpid == 0:
+            for w in words:
+                self.proc.stdin.write(("^"+w+"\n").encode('utf8'))
+            os._exit(0)
+        self.proc.stdin.close()
+        bad_words = {}
+ 
+        while True:
+            line = self._readline()
+            if len(line) == 0:
+                break
+            line = line.rstrip()
+            if not len(line) or line[0] in '*+-': continue
+ 
+            if line[0] == '#': 
+                car = line.split(' ')
+                bad_words[car[1]] = []          # no suggestions
+            elif line[0] != '&': 
+                print "hunspell protocoll error: '%s'" % line
+                continue        # unknown stuff
+            # '& Radae 7 0: Radar, Ramada, Estrada, Prada, Rad, Roadie, Readable\n'
+            a = line.split(': ')
+            if len(a) >= 2:
+                car = a[0].split(' ')
+                cdr = a[1].split(', ')
+                bad_words[car[1]] = cdr
+            else:
+                print("bad hunspell reply: %s, split as %s" % (line, a))
+        self.proc = None
+        return bad_words
 
 if __name__ == "__main__": main()
 

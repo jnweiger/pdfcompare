@@ -1,8 +1,9 @@
 TODO
 
 * hunspell issues:
-  - piping is dead slow. Python uses single byte ready, just like java did in the 80ies:
-  - the result is random words. Does not look like a spell checker at all.
+  - python-HunspellPure should be a separate module. Split it.
+  - cannot choose language or spelling dictionary with --spell, 
+    improve option parser.
 
 * feature: logfile generator.
   produce a json/xml/csv/txt file describing the diffs, -s word locations 
@@ -64,3 +65,4 @@ DONE:
   pipe the wordlist through hunspell, if hunspell is available.
   use search-highlights to mark all words for which hunspell has spelling 
   suggestions. 
+

@@ -164,9 +164,12 @@ class Hunspell():
                 continue        # unknown stuff
             # '& Radae 7 0: Radar, Ramada, Estrada, Prada, Rad, Roadie, Readable\n'
             a = line.split(': ')
-            car = a[0].split(' ')
-            cdr = a[1].split(', ')
-            bad_words[car[1]] = cdr
+            if len(a) >= 2:
+                car = a[0].split(' ')
+                cdr = a[1].split(', ')
+                bad_words[car[1]] = cdr
+            else:
+                print("bad hunspell reply: %s, split as %s" % (line, a))
         self.proc = None
         return bad_words
 
