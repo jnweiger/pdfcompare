@@ -1,4 +1,18 @@
+# hunspell.py -- a wrapper class for hunspell
+#
+# (c) 2013 Juergen Weigert jw@suse.de
+# Distribute under GPL-2.0 or ask
+#
+# 2013-01-31, V0.1 jw - initial draught: word by word I/O
+# 2013-02-01, V0.1 jw - added own _readline() to use buffering. Pythons readline()
+#                       does single byte read()s, which is slow.
+# 2013-02-02, V0.2 jw - check_words() now remembers a wordlist, pushes all out 
+#                       with an extra thread, reads back async, and reassembles.
+#                       This is much more efficient
+#
 import os,subprocess,re
+
+__VERSION__ = '0.2'
 
 class Hunspell():
     """A pure python module to interface with hunspell.
