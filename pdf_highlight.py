@@ -1140,7 +1140,8 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
     for word in wl_new:
       m = re.search('([a-z_-]{3,})', word[0], re.I)
       if m:
-        stem = m.group(1).lower()
+        # preserve capitalization. hunspell handles that nicely.
+        stem = m.group(1)
         word_set.add(stem)
         if not 's' in word[3]: word[3]['s'] = {}
         word[3]['s'][word[2]] = stem
