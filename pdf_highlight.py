@@ -638,7 +638,7 @@ def main():
   parser.add_argument("--strict", default=False, action="store_true",
                       help="show really all differences; default: ignore removed hyphenation; ignore character spacing inside a word")
   parser.add_argument("--spell", "--spell-check", default=False, action="store_true",
-                      help="run the text body of the (new) pdf through hunspell. Unknown words are underlined.")
+                      help="run the text body of the (new) pdf through hunspell. Unknown words are underlined. Use e.g. 'env DICTIONARY=de_DE ...' (or en_US, ...) to specify the spelling dictionary, if your system has more than one. Check with 'hunspell -D' and study 'man hunspell'.")
   parser.add_argument("-L", "--last-page", metavar="LAST_PAGE",
                       help="limit pages processed; this counts pages, it does not use document \
                       page numbers; see also -F; default: all pages")
@@ -1135,7 +1135,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         markword(p_rect_dict, wl_new, j, attr, fontinfo)
 
   if spell_check:
-    h = Hunspell()
+    h = Hunspell(dicts=None)
     word_set = set()
     for word in wl_new:
       m = re.search('([a-z_-]{3,})', word[0], re.I)
@@ -1157,9 +1157,10 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         word[2] in word[3]['s'] and \
         word[3]['s'][word[2]] in bad_word_dict:
         attr = ext['e'].copy()
-        suggest = bad_word_dict[word[3]['s'][word[2]]]
+        stem = word[3]['s'][word[2]]
+        suggest = map(lambda x: urllib.quote_plus(x), bad_word_dict[stem])
         if not len(suggest): suggest = ['???']
-        attr['o'] = "("+word[3]['s'][word[2]]+") -> " + (", ".join(suggest))
+        attr['o'] = "("+urllib.quote_plus(stem)+") -> " + (", ".join(suggest))
         attr['t'] = "spl"
         markword(p_rect_dict, wl_new, idx, attr, fontinfo)
       idx += 1
@@ -1219,6 +1220,7 @@ class Hunspell():
        It was written as a replacement for the hunspell module from
        http://code.google.com/p/pyhunspell/, which appears to be in unmaintained.
        and more difficult to use, due to lack of examples and documentation.
+       If you pass dicts=None, the environment variable DICTIONARY can be used.
     """
     def __init__(self, dicts=['en_US']):
         self.cmd = ['hunspell', '-i', 'utf-8', '-a']

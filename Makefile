@@ -1,12 +1,12 @@
 
-VER=1.3
+VER=1.4
 D=dist/pdfcompare-$(VER)
 EXCL=--exclude \*.orig --exclude \*~
 
 all: check tar
 
 check test:
-	cd test; make test
+	cd test; make test VER=$(VER)
 
 testrefresh refreshtest:
 	cd test; make test refresh=yes
