@@ -1,10 +1,12 @@
-import os,subprocess
+import os,subprocess,re
 from pprint import pprint
 
 class Hunspell():
     def __init__(self, dicts=['en_US']):
-        self.cmd = ['hunspell', '-i', 'utf-8', '-a', '-d', ','.join(dicts)]
+        self.cmd = ['hunspell', '-i', 'utf-8', '-a']
+        if len(dicts): self.cmd += ['-d', ','.join(dicts)]
         self.proc = None
+        self.attr = {}
         self.buffer = ''
 
     def _start(self):
@@ -48,6 +50,60 @@ class Hunspell():
         r = self.buffer[0:idx+1]
         self.buffer = self.buffer[idx+1:]
         return r
+
+    def _load_attr(self):
+        try:
+            p = subprocess.Popen(self.cmd + ['-D'], shell=False, 
+                stdin=open('/dev/null'), stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
+        except OSError as e:
+            raise OSError("%s failed: errno=%d %s" % (self.cmd + ['-D'], e.errno, e.strerror))
+        self.attr = {}
+        header=''
+        while True:
+            line = p.stdout.readline().rstrip()
+            if not len(line):
+                break
+            # AVAILABLE DICTIONARIES (path is not mandatory for -d option):
+            m = re.match('([A-Z]+\s[A-Z]+).*:$', line)
+            if m:
+                header = m.group(1)
+                self.attr[header] = []
+            elif len(header):
+                self.attr[header].append(line)
+        return self.attr
+ 
+    def list_dicts(self):
+        self._load_attr()
+        r = {}
+        for d in self.attr['AVAILABLE DICTIONARIES']:
+            words = d.split('/')
+            r[words[-1]] = d
+        return r
+ 
+    def dict_search_path(self):
+        self._load_attr()
+        r = []
+        for d in self.attr['SEARCH PATH']:
+            r += d.split(':')
+        return r
+ 
+    def check_words(self, words):
+        if self.proc is None:
+            self._start()
+        childpid = os.fork()
+        if childpid == 0:
+            for w in words:
+                self.proc.stdin.write(("^"+w+"\n").encode('utf8'))
+            os._exit(0)
+        self.proc.stdin.close()
+        bad_words = {}
+ 
+        while True:
+            line = self._readline()
+            if len(line) == 0:
+                break
+            line = line.rstrip()
+            if not len(line) or line[0] in '*+-': continue
  
     def check_words(self, words):
         if self.proc is None:
@@ -85,6 +141,6 @@ class Hunspell():
 h = Hunspell()
 pprint(h.check_words(["ppppp", '123', '', 'gorkicht', 'gemank', 'haus', '']))
 pprint(h.check_words(["Radae", 'blood', 'mensch', 'green', 'blea', 'fork']))
-pprint(dir(h))
+pprint(h.list_dicts())
+pprint(h.dict_search_path())
 pprint(h.version)
-pprint(h.header)
