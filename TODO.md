@@ -3,8 +3,10 @@ TODO
 * hunspell issues:
   - python-HunspellPure should be a separate module. Split it.
   - we artificially limit to [A-Z_-]+ for words. This is bad for german umlauts.
+  - extend hunspell to allow a progress indicator callback.
+    (counting newlines seen in response)
 
-* feature: logfile generator.
+* improve --log logfile generator.
   produce a json/xml/csv/txt file describing the diffs, -s word locations 
   and --spellcheck results.
 
@@ -65,3 +67,5 @@ DONE:
   use search-highlights to mark all words for which hunspell has spelling 
   suggestions. 
 
+* feature: 
+  added a trivial --log implementation

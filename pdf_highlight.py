@@ -62,6 +62,8 @@
 #                      - added an implementation of --spell using hunspell in pipe()  
 # 2013-02-02, V1.4  jw - New hunspell.py module created, and incorporated.
 #                        The earlier implementation used a premature pipe protocol.
+# 2013-02-03, V1.5  jw - Added a trivial --log implementation.
+#                      - sorted command line options alphabetically.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -81,7 +83,7 @@
 # Compatibility for older Python versions
 from __future__ import with_statement
 
-__VERSION__ = '1.4'
+__VERSION__ = '1.5'
 
 from cStringIO import StringIO
 from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
@@ -607,56 +609,58 @@ def main():
   parser.def_marks = 'A,D,C'
   parser.def_features = 'H,C,P,N,W,M'
   parser.def_margins = '0,0,0,0'
-  parser.add_argument("-o", "--output", metavar="OUTFILE", default=parser.def_output,
-                      help="write output to FILE; default: "+parser.def_output)
-  parser.add_argument("-s", "--search", metavar="WORD_REGEXP", 
-                      help="highlight WORD_REGEXP")
-  parser.add_argument("-d", "--decrypt-key", metavar="DECRYPT_KEY", default=parser.def_decrypt_key,
-                      help="open an encrypted PDF; default: KEY='"+parser.def_decrypt_key+"'")
   parser.add_argument("-c", "--compare-text", metavar="OLDFILE",
                       help="mark added, deleted and replaced text (or see -m) with regard to OLDFILE. \
                             File formats .pdf, .xml, .txt are recognized by their suffix. \
                             The comparison works word by word.")
+  parser.add_argument("-d", "--decrypt-key", metavar="DECRYPT_KEY", default=parser.def_decrypt_key,
+                      help="open an encrypted PDF; default: KEY='"+parser.def_decrypt_key+"'")
+  parser.add_argument("-e", "--exclude-irrelevant-pages", default=False, action="store_true",
+                      help="with -s: show only matching pages; with -c: show only changed pages; \
+                      default: reproduce all pages from INFILE in OUTFILE")
+  parser.add_argument("-f", "--features", metavar="FEATURES", default=parser.def_features,
+                      help="specify how to mark. Allowed values are 'highlight', 'changebar', 'popup', \
+                      'navigation', 'watermark', 'margin'. Default: " + str(parser.def_features))
+  parser.add_argument("-i", "--nocase", default=False, action="store_true",
+                      help="make -s case insensitive; default: case sensitive")
+  parser.add_argument("-l", "--log",  metavar="LOGFILE", 
+                      help="write an python datastructure describing all the overlay objects on each page. Default none.")
   parser.add_argument("-m", "--mark", metavar="OPS", default=parser.def_marks,
                       help="specify what to mark. Used with -c. Allowed values are 'add','delete','change','equal'. \
                             Multiple values can be listed comma-seperated; abbreviations are allowed.\
                             Default: " + str(parser.def_marks))
-  parser.add_argument("-M", "--margins", metavar="N,E,W,S", default=parser.def_margins,
-                      help="specify margin space to ignore on each page. A margin width is expressed \
-                      in units of ca. 100dpi. Specify four numbers in the order north,east,west,south. Default: "\
-                      + str(parser.def_margins))
-  parser.add_argument("-f", "--features", metavar="FEATURES", default=parser.def_features,
-                      help="specify how to mark. Allowed values are 'highlight', 'changebar', 'popup', \
-                      'navigation', 'watermark', 'margin'. Default: " + str(parser.def_features))
-  parser.add_argument("-e", "--exclude-irrelevant-pages", default=False, action="store_true",
-                      help="with -s: show only matching pages; with -c: show only changed pages; \
-                      default: reproduce all pages from INFILE in OUTFILE")
   parser.add_argument("-n", "--no-output", default=False, action="store_true",
                       help="do not write an output file; print diagnostics only; default: write output file as per -o")
-  parser.add_argument("-i", "--nocase", default=False, action="store_true",
-                      help="make -s case insensitive; default: case sensitive")
-  parser.add_argument("--strict", default=False, action="store_true",
-                      help="show really all differences; default: ignore removed hyphenation; ignore character spacing inside a word")
+  parser.add_argument("-o", "--output", metavar="OUTFILE", default=parser.def_output,
+                      help="write output to FILE; default: "+parser.def_output)
+  parser.add_argument("-s", "--search", metavar="WORD_REGEXP", 
+                      help="highlight WORD_REGEXP")
   parser.add_argument("--spell", "--spell-check", default=False, action="store_true",
                       help="run the text body of the (new) pdf through hunspell. Unknown words are underlined. Use e.g. 'env DICTIONARY=de_DE ...' (or en_US, ...) to specify the spelling dictionary, if your system has more than one. Check with 'hunspell -D' and study 'man hunspell'.")
-  parser.add_argument("-L", "--last-page", metavar="LAST_PAGE",
-                      help="limit pages processed; this counts pages, it does not use document \
-                      page numbers; see also -F; default: all pages")
-  parser.add_argument("-F", "--first-page", metavar="FIRST_PAGE",
-                      help="skip some pages at start of document; see also -L; default: all pages")
+  parser.add_argument("--strict", default=False, action="store_true",
+                      help="show really all differences; default: ignore removed hyphenation; ignore character spacing inside a word")
   parser.add_argument("-t", "--transparency", type=float, default=parser.def_trans, metavar="TRANSP", 
                       help="set transparency of the highlight; invisible: 0.0; full opaque: 1.0; \
                       default: " + str(parser.def_trans))
-  parser.add_argument("-D", "--debug", default=False, action="store_true",
-                      help="enable debugging. Prints more on stdout, dumps several *.xml or *.pdf files.")
-  parser.add_argument("-V", "--version", default=False, action="store_true",
-                      help="print the version number and exit")
-  parser.add_argument("-X", "--no-compression", default=False, action="store_true",
-                      help="write uncompressed PDF. Default: FlateEncode filter compression.")
   parser.add_argument("-C", "--search-color", metavar="NAME=R,G,B", action="append",
                       help="set colors of the search highlights as an RGB triplet; R,G,B ranges are 0.0-1.0 each; valid names are 'add,'delete','change','equal','margin','all'; default name is 'equal', which is also used for -s; default colors are " + 
                       " ".join(map(lambda (x,y): "%s=%s,%s,%s /*%s*/ " %(x,y[0],y[1],y[2],y[3]), 
                       parser.def_colors.items())))
+  parser.add_argument("-D", "--debug", default=False, action="store_true",
+                      help="enable debugging. Prints more on stdout, dumps several *.xml or *.pdf files.")
+  parser.add_argument("-F", "--first-page", metavar="FIRST_PAGE",
+                      help="skip some pages at start of document; see also -L; default: all pages")
+  parser.add_argument("-L", "--last-page", metavar="LAST_PAGE",
+                      help="limit pages processed; this counts pages, it does not use document \
+                      page numbers; see also -F; default: all pages")
+  parser.add_argument("-M", "--margins", metavar="N,E,W,S", default=parser.def_margins,
+                      help="specify margin space to ignore on each page. A margin width is expressed \
+                      in units of ca. 100dpi. Specify four numbers in the order north,east,west,south. Default: "\
+                      + str(parser.def_margins))
+  parser.add_argument("-V", "--version", default=False, action="store_true",
+                      help="print the version number and exit")
+  parser.add_argument("-X", "--no-compression", default=False, action="store_true",
+                      help="write uncompressed PDF. Default: FlateEncode filter compression.")
   parser.add_argument("infile", metavar="INFILE", help="the input file")
   parser.add_argument("infile2", metavar="INFILE2", nargs="?", help="optional 'newer' input file; alternate syntax to -c")
   args = parser.parse_args()      # --help is automatic
@@ -772,7 +776,10 @@ def main():
            'c': {'c':args.search_colors['C']},
            'e': {'c':args.search_colors['E']} })
 
-  # pprint(page_marks[0])
+  if args.log is not None:
+    lf = open(args.log, "w")
+    pprint(page_marks, stream=lf)
+    lf.close()
 
   output = PdfFileWriter()
   # Evil hack: there is no sane way to transport DocumentInfo metadata.
