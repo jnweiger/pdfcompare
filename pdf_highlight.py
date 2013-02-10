@@ -64,6 +64,8 @@
 #                        The earlier implementation used a premature pipe protocol.
 # 2013-02-03, V1.5  jw - Added a trivial --log implementation.
 #                      - sorted command line options alphabetically.
+# 2013-02-09, V1.5.1 jw - added test/python3.sh -- 
+#                        cannot test much, too many modules missing.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -83,9 +85,14 @@
 # Compatibility for older Python versions
 from __future__ import with_statement
 
-__VERSION__ = '1.5'
+__VERSION__ = '1.5.1'
 
-from cStringIO import StringIO
+try:
+  # python2
+  from cStringIO import StringIO
+except ImportError:
+  # python3, breaks python2-reportlab
+  from io import StringIO
 from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import Color
@@ -182,7 +189,8 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
   highlight=False
   changebar=False
   navigation=False
-  features = map(lambda x: x[0].upper(), features.split(','))
+  # features = map(lambda x: x[0].upper(), features.split(','))
+  features = [x[0].upper() for x in features.split(',')]
   if 'A' in features: anno=True
   if 'P' in features: anno=True         # aka popup
   if 'H' in features: highlight=True
@@ -237,7 +245,7 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
       text = text.encode('ascii', errors='replace')
     except:
       # I cannot even print the below failed message, it dies in self.encode()
-      #print "failed to encode text: '%s'" % text
+      #print("failed to encode text: '%s'" % text)
       #text = "text.encode('ascii', errors='ignore')"
       text = urllib.quote_plus(text)
     canv.linkURL(text, (x, y, x+w, y+h), relative=0) # , Border="[ 1 1 1 ]")
@@ -299,7 +307,8 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
 def page_watermark(canv, box, argv, color=[1,0,1], trans=0.5, p_w=None, p_h=None, margins=None, features='W,M'):
   f_watermark=False
   f_margins=False
-  features = map(lambda x: x[0].upper(), features.split(','))
+  #features = map(lambda x: x[0].upper(), features.split(','))
+  features = [x[0].upper() for x in features.split(',')]
   if 'M' in features: f_margins=True
   if 'W' in features: f_watermark=True
 
@@ -338,12 +347,12 @@ def pdf2xml(parser, infile, key=''):
     pdftohtml_cmd += ["-upw", key]
   try:
     (to_child, from_child) = os.popen2(pdftohtml_cmd + [infile])
-  except Exception,e:
+  except Exception as e:
     parser.exit("pdftohtml -xml failed: " + str(e))
 
   try:
     dom = ET.parse(from_child)
-  except Exception,e:
+  except Exception as e:
     parser.exit("pdftohtml -xml failed.\nET.parse: " + str(e) + ")\n\n" + parser.format_usage())
   print("pdf2xml done")
   return dom
@@ -644,8 +653,7 @@ def main():
                       default: " + str(parser.def_trans))
   parser.add_argument("-C", "--search-color", metavar="NAME=R,G,B", action="append",
                       help="set colors of the search highlights as an RGB triplet; R,G,B ranges are 0.0-1.0 each; valid names are 'add,'delete','change','equal','margin','all'; default name is 'equal', which is also used for -s; default colors are " + 
-                      " ".join(map(lambda (x,y): "%s=%s,%s,%s /*%s*/ " %(x,y[0],y[1],y[2],y[3]), 
-                      parser.def_colors.items())))
+                      " ".join(["%s=%s,%s,%s /*%s*/ " %(x_y[0],x_y[1][0],x_y[1][1],x_y[1][2],x_y[1][3]) for x_y in list(parser.def_colors.items())]))
   parser.add_argument("-D", "--debug", default=False, action="store_true",
                       help="enable debugging. Prints more on stdout, dumps several *.xml or *.pdf files.")
   parser.add_argument("-F", "--first-page", metavar="FIRST_PAGE",
@@ -683,7 +691,7 @@ def main():
       except: pass 
       if b is None: parser.exit("--search-color NAME=R,G,B: no two ',' found in '%s=%s'" % (name,val))
       if name.upper() == 'ALL':
-        for c in args.search_colors.keys():
+        for c in list(args.search_colors.keys()):
           args.search_colors[c] = [float(r),float(g),float(b)]
       else:
         name = name[0].upper()
@@ -801,7 +809,7 @@ def main():
       print("DocumentInfo():")
       pprint(di)
     output._objects.append(di)
-  except Exception,e:
+  except Exception as e:
     print("WARNING: getDocumentInfo() failed: " + str(e) );
 
   output._info = Pdf.IndirectObject(len(output._objects), 0, output)
@@ -905,7 +913,8 @@ def rendered_text_width(str, font=None):
      """
   if (font is None): return len(str)
   if (len(str) == 0): return 0
-  return sum(map(lambda x: x[4], font.metrics(str)))
+  # return sum(map(lambda x: x[4], font.metrics(str)))
+  return sum([x[4] for x in font.metrics(str)])
 
 def rendered_text_pos(string1, char_start, char_count, font=None, xoff=0, width=None):
   """Returns a tuple (xoff2,width2) where substr(string1, ch_start, ch_count) will be rendered
@@ -1064,7 +1073,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
     wl_new = xml2wordlist(dom, first_page, last_page, margins=margins)
   if wordlist:
     s = SequenceMatcher(None, wordlist, wl_new, autojunk=False)
-    print "SequenceMatcher done"
+    print("SequenceMatcher done")
 
     def opcodes_post_proc(iter_list):
       ## Often small pieces are replaced by big pieces or vice versa.
@@ -1081,12 +1090,12 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
           j_len = j2-j1
           if not strict and i_len == 2 and j_len == 1:
             if debug:
-              print "not strict: check '%s','%s' -> '%s'" % (wordlist[i1][0],wordlist[i1+1][0],wl_new[j1][0])
+              print("not strict: check '%s','%s' -> '%s'" % (wordlist[i1][0],wordlist[i1+1][0],wl_new[j1][0]))
             # check, if we can optimize it away
             m = re.match("(.*)-$", wordlist[i1][0])
             if m and m.group(1) + wordlist[i1+1][0] == wl_new[j1][0]:
               if debug:
-                print "not strict: ign '%s','%s' -> '%s'" % (wordlist[i1][0],wordlist[i1+1][0],wl_new[j1][0])
+                print("not strict: ign '%s','%s' -> '%s'" % (wordlist[i1][0],wordlist[i1+1][0],wl_new[j1][0]))
               continue      # "foo-", "bar" became "foobar"
           if i_len < j_len:
             # print("getting longer by %d" % (j_len-i_len))
@@ -1165,7 +1174,8 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         word[3]['s'][word[2]] in bad_word_dict:
         attr = ext['e'].copy()
         stem = word[3]['s'][word[2]]
-        suggest = map(lambda x: urllib.quote_plus(x), bad_word_dict[stem])
+        # suggest = map(lambda x: urllib.quote_plus(x), bad_word_dict[stem])
+        suggest = [urllib.quote_plus(x) for x in bad_word_dict[stem]]
         if not len(suggest): suggest = ['???']
         attr['o'] = "("+urllib.quote_plus(stem)+") -> " + (", ".join(suggest))
         attr['t'] = "spl"
@@ -1198,7 +1208,8 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         #print("search (%s)" % re_pattern)
         flags = re.UNICODE
         if (nocase): flags |= re.IGNORECASE
-        l = map(lambda x:len(x), re.split('('+re_pattern+')', text, flags=flags))
+        # l = map(lambda x:len(x), re.split('('+re_pattern+')', text, flags=flags))
+        l = [len(x) for x in re.split('('+re_pattern+')', text, flags=flags)]
         l.append(0)       # dummy to make an even number.
         # all odd indices in l are word lengths, all even ones are seperator lengths
         offset = 0
@@ -1369,7 +1380,7 @@ class Hunspell():
                 car = line.split(' ')
                 bad_words[car[1]] = []          # no suggestions
             elif line[0] != '&': 
-                print "hunspell protocoll error: '%s'" % line
+                print("hunspell protocoll error: '%s'" % line)
                 continue        # unknown stuff
             # '& Radae 7 0: Radar, Ramada, Estrada, Prada, Rad, Roadie, Readable\n'
             a = line.split(': ')
