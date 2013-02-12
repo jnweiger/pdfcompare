@@ -81,6 +81,12 @@
 #   within a string.
 #
 # TODOs: see extra file TODO.md 
+#
+# further References:
+#  http://www.aclweb.org/anthology-new/W/W12/W12-3211.pdf
+#  https://github.com/elacin/PDFExtract/
+#  http://svn.apache.org/repos/asf/pdfbox/trunk/ 
+
 
 # Compatibility for older Python versions
 from __future__ import with_statement
