@@ -66,6 +66,10 @@
 #                      - sorted command line options alphabetically.
 # 2013-02-09, V1.5.1 jw - added test/python3.sh -- 
 #                        cannot test much, too many modules missing.
+#  2013-03-26, V1.6  jw - added experimental opcodes_find_moved()
+#                        Although theoretically quadratic runtime, this 
+#                        contributes less than 2 seconds runtime to
+#                        490 pages sleha: 371.254u 1.104s 6:20.49 97.8% 
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -91,7 +95,7 @@
 # Compatibility for older Python versions
 from __future__ import with_statement
 
-__VERSION__ = '1.5.1'
+__VERSION__ = '1.6'
 
 try:
   # python2
@@ -785,6 +789,8 @@ def main():
       margins=margins,
       strict=args.strict,
       spell_check=args.spell,
+      move_similarity=0.85,
+      move_minwords=100,
       ext={'a': {'c':args.search_colors['A']},
            'd': {'c':args.search_colors['D']},
            'c': {'c':args.search_colors['C']},
@@ -990,7 +996,7 @@ def spell_check_word(w):
     return "dummy implementation. marks the words 'files', 'Nuernberg' and 'ca.'"
   return None
 
-def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, first_page=None, last_page=None, mark_ops="D,A,C", margins=None, strict=False, spell_check=False):
+def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, first_page=None, last_page=None, mark_ops="D,A,C", margins=None, strict=False, spell_check=False, move_similarity=0.95, move_minwords=10):
   """traverse the XML dom tree, (which is expected to come from pdf2html -xml)
      find all occurances of re_pattern on all pages, returning rect list for 
      each page, giving the exact coordinates of the bounding box of all 
@@ -1026,6 +1032,12 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
           w[3]['x'],w[3]['y'],w[3]['w'],w[3]['h'], attr)
     if not p_nr in r_dict: r_dict[p_nr] = []
     r_dict[p_nr].append(mark)
+
+  def catwords_raw(dw, idx1, idx2):
+    text = ""
+    for w in dw[idx1:idx2]:
+      text += w[0] + " "
+    return text[:-1]    # chop off trailing whitespace
 
   def catwords(dw, idx1, idx2):
     text = ""
@@ -1079,7 +1091,60 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
     wl_new = xml2wordlist(dom, first_page, last_page, margins=margins)
   if wordlist:
     s = SequenceMatcher(None, wordlist, wl_new, autojunk=False)
-    print("SequenceMatcher done")
+    # print("SequenceMatcher done")     # this means nothing... s.get_opcodes() takes ages!
+
+    def opcodes_find_moved(iter_list):
+      """ adds a 6th element to the yielded tuple, which holds refernces between 
+          'delete's and 'insert's. Example hint = { 'ref': [ (start_idx, similarity), ...] }
+          A similarity of 1.0 means "identical"; a similarity of 0.0 has nothing in common.
+          The elements in the ref list are sorted by decreasing similarity.
+      """
+      # deleted: 99 140 99 99
+      # inserted: 196 196 155 195
+      # inserted: 1474 1474 1473 1863
+      # deleted: 1894 2284 2283 2283
+
+      if debug:
+        print("second level diff ...")
+      if move_similarity is None:
+        if debug:
+          print(" ... skipped.")
+        for tag, i1, i2, j1, j2 in iter_list:
+          yield ((tag, i1, i2, j1, j2, {}))
+      else:
+        all = []
+        for tag, i1, i2, j1, j2 in iter_list:
+          all.append((tag, i1, i2, j1, j2, {}))
+        for tag, i1, i2, j1, j2, hint in all:
+          for tagb, i1b, i2b, j1b, j2b, hintb in all:
+            if (tag == 'insert' and tagb == 'delete' and 
+                i2 - i1 > move_minwords and 
+                j2 - j1 > move_minwords):
+              list_ins = wl_new[j1:j2]
+              list_del = wordlist[i1b:i2b]
+              ## could also use levenshtein() to compute a distance.
+              sm = SequenceMatcher(None, list_ins, list_del, autojunk=False)
+              r = sm.ratio()
+              if r >= move_similarity:
+                if not 'ref' in hint:  hint['ref'] = []
+                if not 'ref' in hintb: hintb['ref'] = []
+                hint['ref'].append((r, i1b, i2b))   # wordlist[..]
+                hintb['ref'].append((r, j1, j2))    # wl_new[..]
+      
+        if debug:
+          print(" ... sorting ...")
+      
+        for tag, i1, i2, j1, j2, hint in all:
+          if 'ref' in hint:
+            hint['ref'].sort(key=lambda ref:ref[1], reverse=True)
+            print 'moved:', tag, i1, j1, hint
+      
+        if debug:
+          print(" ... done")
+      
+        for tag, i1, i2, j1, j2, hint in all:
+          yield (tag, i1, i2, j1, j2, hint)
+
 
     def opcodes_post_proc(iter_list):
       ## Often small pieces are replaced by big pieces or vice versa.
@@ -1090,7 +1155,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
       ##
       ## I now officially love generators in python.
       ##
-      for tag, i1, i2, j1, j2 in iter_list:
+      for tag, i1, i2, j1, j2, hint in opcodes_find_moved(iter_list):
         if tag == "replace":
           i_len = i2-i1
           j_len = j2-j1
@@ -1105,19 +1170,20 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
               continue      # "foo-", "bar" became "foobar"
           if i_len < j_len:
             # print("getting longer by %d" % (j_len-i_len))
-            yield ('replace',  i1,i2, j1,j1+i_len)
-            yield ('insert',   i2,i2, j1+i_len,j2)
+            yield ('replace',  i1,i2, j1,j1+i_len, hint)
+            yield ('insert',   i2,i2, j1+i_len,j2, hint)
           elif i_len > j_len:
             # print("getting shorter by %d" % (i_len-j_len))
-            yield ('replace', i1,i1+j_len, j1, j2)
-            yield ('delete',  i1+j_len,i2, j2, j2)
+            yield ('replace', i1,i1+j_len, j1, j2, hint)
+            yield ('delete',  i1+j_len,i2, j2, j2, hint)
           else:
             # same length
-            yield (tag, i1, i2, j1, j2)
+            yield (tag, i1, i2, j1, j2, hint)
         else:
-          yield (tag, i1, i2, j1, j2)
+          yield (tag, i1, i2, j1, j2, hint)
 
-    for tag, i1, i2, j1, j2 in opcodes_post_proc(s.get_opcodes()):
+    print("SequenceMatcher get_opcodes()")
+    for tag, i1, i2, j1, j2, hint in opcodes_post_proc(s.get_opcodes()):
       if tag == "equal":
         if 'e' in ops:
           attr = ext['e'].copy()
