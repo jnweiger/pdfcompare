@@ -1104,11 +1104,9 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
       # inserted: 1474 1474 1473 1863
       # deleted: 1894 2284 2283 2283
 
-      if debug:
-        print("second level diff ...")
+      print("second level diff ...")
       if move_similarity is None:
-        if debug:
-          print(" ... skipped.")
+        print(" ... skipped.")
         for tag, i1, i2, j1, j2 in iter_list:
           yield ((tag, i1, i2, j1, j2, {}))
       else:
@@ -1118,8 +1116,8 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         for tag, i1, i2, j1, j2, hint in all:
           for tagb, i1b, i2b, j1b, j2b, hintb in all:
             if (tag == 'insert' and tagb == 'delete' and 
-                i2 - i1 > move_minwords and 
-                j2 - j1 > move_minwords):
+                (i2b-i1b) > move_minwords and 
+                (j2 - j1) > move_minwords):
               list_ins = wl_new[j1:j2]
               list_del = wordlist[i1b:i2b]
               ## could also use levenshtein() to compute a distance.
@@ -1131,16 +1129,14 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
                 hint['ref'].append((r, i1b, i2b))   # wordlist[..]
                 hintb['ref'].append((r, j1, j2))    # wl_new[..]
       
-        if debug:
-          print(" ... sorting ...")
+        print(" ... sorting ...")
       
         for tag, i1, i2, j1, j2, hint in all:
           if 'ref' in hint:
             hint['ref'].sort(key=lambda ref:ref[1], reverse=True)
             print 'moved:', tag, i1, j1, hint
       
-        if debug:
-          print(" ... done")
+        print(" ... done")
       
         for tag, i1, i2, j1, j2, hint in all:
           yield (tag, i1, i2, j1, j2, hint)
