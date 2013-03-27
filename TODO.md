@@ -27,6 +27,7 @@ TODO
 
 
 DONE:
+
 * write compressed streams.
 
 * catch file open errors, before ET complains about 0 elements.
@@ -69,3 +70,5 @@ DONE:
 
 * feature: 
   added a trivial --log implementation
+
+* second level diff for moved blocks.

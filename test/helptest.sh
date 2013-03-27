@@ -9,8 +9,9 @@ if pdfcompare --help | tail -n 1; then
     help=$(pdfcompare --help | tail -n 1 | awk '{print $2}')
     if [[ "$help" == "$1" ]]; then
 	echo "The version numbers match!"
+	exit 0
     else
-	echo "The version numbers ($help != $1) don't match!"
+	echo "Version numbers don't match: Makefile has $1, 'pdfcompare --help' says $help "
 	exit 2
     fi
 else

@@ -159,6 +159,8 @@ def mergeAnnotsRelocate(dest_p, src_p, first_page=0):
   # First we fetch the list of all IndirectObject()s for all the pages 
   # in the dest stream.
   if "/Parent" in dest_p:
+    # FIXME: this is not always an array of all pages. 
+    # Tanja's book_sleha.pdf has only len(pages_a) = 10, alhtough we have 490 pages.
     pages_a = dest_p["/Parent"].getObject().get("/Kids", [])
   else:
     pages_a = []
@@ -178,8 +180,10 @@ def mergeAnnotsRelocate(dest_p, src_p, first_page=0):
             o["/Dest"][0] = pages_a[int(p_nr)+first_page]
             if debug > 1: pprint(["mergeAnnots new:", o])
           else:
-            print("mergeAnnots failed: page_idx %d out of range. Have %d" % 
-              (int(p_nr)+first_page, len(pages_a)))
+            # FIXME: len(pages_a) can be much shorter than number of pages...
+            if debug:
+              print("mergeAnnots failed: page_idx %d out of range. Have %d" % 
+                    (int(p_nr)+first_page, len(pages_a)))
         else:
           print("mergeAnnots failed: page_ref_magic not found: '%s'" % o["/Contents"])
     if "/Annots" in dest_p:
@@ -314,15 +318,15 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
         pprint(m)
         return      # shortcut, only the first word of the page
 
-def page_watermark(canv, box, argv, color=[1,0,1], trans=0.5, p_w=None, p_h=None, margins=None, features='W,M'):
+def page_watermark(canv, box, argv, color=[1,0,1], trans=0.5, p_w=None, p_h=None, margins=None, features='W,B'):
   f_watermark=False
-  f_margins=False
+  f_bordermargins=False
   #features = map(lambda x: x[0].upper(), features.split(','))
   features = [x[0].upper() for x in features.split(',')]
-  if 'M' in features: f_margins=True
+  if 'B' in features: f_bordermargins=True
   if 'W' in features: f_watermark=True
 
-  if f_margins and margins:
+  if f_bordermargins and margins:
     w,h = canv._pagesize
     w=float(w)
     h=float(h)
@@ -617,16 +621,17 @@ def xml2fontinfo(dom, last_page=None):
 
 def main():
   parser = ArgumentParser(epilog="version: "+__VERSION__, description="highlight words in a PDF file.")
-  parser.def_trans = 0.5
+  parser.def_trans = 0.6
   parser.def_decrypt_key = ''
-  parser.def_colors = { 'E': [1,0,1,    'pink'], 
-                        'A': [.3,1,.3,  'green'],
-                        'D': [1,.3,.3,  'red'],
-                        'C': [.9,.8,0,  'yellow'],
-                        'M': [.9,.9,.9, 'gray'] }
+  parser.def_colors = { 'E': [1,0,1,    'pink'],        # extra
+                        'A': [.3,1,.3,  'green'],       # added
+                        'D': [1,.3,.3,  'red'],         # deleted
+                        'C': [.9,.8,0,  'yellow'],      # changed
+                        'M': [.7,1,1,   'blue'],        # moved
+                        'B': [.9,.9,.9, 'gray'] }       # borders
   parser.def_output = 'output.pdf'
   parser.def_marks = 'A,D,C'
-  parser.def_features = 'H,C,P,N,W,M'
+  parser.def_features = 'H,C,P,N,W,B'
   parser.def_margins = '0,0,0,0'
   parser.add_argument("-c", "--compare-text", metavar="OLDFILE",
                       help="mark added, deleted and replaced text (or see -m) with regard to OLDFILE. \
@@ -707,7 +712,7 @@ def main():
         name = name[0].upper()
         args.search_colors[name] = [float(r),float(g),float(b)]
 
-  margins = parse_margins(args.margins, args.search_colors['M'])
+  margins = parse_margins(args.margins, args.search_colors['B'])
 
   ## TEST this, fix or disable: they should work well together:
   # if args.search and args.compare_text:
@@ -789,11 +794,12 @@ def main():
       margins=margins,
       strict=args.strict,
       spell_check=args.spell,
-      move_similarity=0.85,
-      move_minwords=100,
+      move_similarity=0.75,     # 0.75 implies 1 of 1, 2 of 2, 3 of 3, 3 of 4 identical.
+      move_minwords=1,
       ext={'a': {'c':args.search_colors['A']},
            'd': {'c':args.search_colors['D']},
            'c': {'c':args.search_colors['C']},
+           'm': {'c':args.search_colors['M']},
            'e': {'c':args.search_colors['E']} })
 
   if args.log is not None:
@@ -1015,7 +1021,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
     p_nr = w[3].get('p','?')
     l = len(w[0])
     off = w[2]
-    if attr['t'] == 'del':
+    if attr['t'] == 'del' or attr['t'] == 'del-mov':
       # l=0 special case:
       # very small marker length triggers extenders.
       # decrement idx if idx > 0.
@@ -1039,7 +1045,14 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
       text += w[0] + " "
     return text[:-1]    # chop off trailing whitespace
 
-  def catwords(dw, idx1, idx2):
+  def catwords(dw, idx1, idx2, maxwords=666):
+    # make maxwords low enough, so that the popup fits on the screen.
+    if (maxwords is not None and idx2-idx1 > maxwords):
+      cw1_text, cw1_loc = catwords(dw, idx1, idx1+maxwords/3, None)
+      cw2_text, cw2_loc = catwords(dw, idx2-maxwords/3, idx2, None)
+      text = cw1_text + ("<br><br> --]-------- snip %d words --------[-- <br><br>" % (idx2-idx1-maxwords*2/3)) + cw2_text
+      return [ text, cw1_loc ]
+
     text = ""
     llen=0
     ypos=None
@@ -1134,15 +1147,31 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         for tag, i1, i2, j1, j2, hint in all:
           if 'ref' in hint:
             hint['ref'].sort(key=lambda ref:ref[1], reverse=True)
-            print 'moved:', tag, i1, j1, hint
+            if debug:
+              print('moved:', tag, i1, i2, j1, j2, hint)   # , catwords_raw(wl_new, j1, j2)
       
-        print(" ... done")
+        print(" ... moving ...")
       
         for tag, i1, i2, j1, j2, hint in all:
-          yield (tag, i1, i2, j1, j2, hint)
+          if (tag == "insert" and len(hint.get('ref',[])) > 0):
+            # second level diff ahead:
+            # hint tells us where the other wordlist is
+            i1b = hint['ref'][0][1]
+            i2b = hint['ref'][0][2]
+            # print ["add new", catwords(wl_new, j1, j2)]
+            # print ["add ref", catwords(wordlist, i1b, i2b)]
+            sm_2 = SequenceMatcher(None, wordlist[i1b:i2b], wl_new[j1:j2], autojunk=False)
+            for tag_2, i1_2, i2_2, j1_2, j2_2 in sm_2.get_opcodes():
+              if tag_2 == "equal": 
+                tag_2 = "move"
+              if tag_2 == "delete": hint = {}
+              yield (tag_2, i1_2+i1b, i2_2+i1b, j1_2+j1, j2_2+j1, hint)
+          else:
+            yield (tag, i1, i2, j1, j2, hint)
+        print(" ... done")
 
 
-    def opcodes_post_proc(iter_list):
+    def opcodes_replace_to_del_ins(iter_list):
       ## Often small pieces are replaced by big pieces or vice versa.
       ## For a concept of wordlist we want to replace n words with exactly n words.
       ## Excessive or missing words should be considered an adjacent insert or delete.
@@ -1151,7 +1180,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
       ##
       ## I now officially love generators in python.
       ##
-      for tag, i1, i2, j1, j2, hint in opcodes_find_moved(iter_list):
+      for tag, i1, i2, j1, j2 in iter_list:
         if tag == "replace":
           i_len = i2-i1
           j_len = j2-j1
@@ -1166,17 +1195,25 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
               continue      # "foo-", "bar" became "foobar"
           if i_len < j_len:
             # print("getting longer by %d" % (j_len-i_len))
-            yield ('replace',  i1,i2, j1,j1+i_len, hint)
-            yield ('insert',   i2,i2, j1+i_len,j2, hint)
+            yield ('replace',  i1,i2, j1,j1+i_len)
+            yield ('insert',   i2,i2, j1+i_len,j2)
           elif i_len > j_len:
             # print("getting shorter by %d" % (i_len-j_len))
-            yield ('replace', i1,i1+j_len, j1, j2, hint)
-            yield ('delete',  i1+j_len,i2, j2, j2, hint)
+            yield ('replace', i1,i1+j_len, j1, j2)
+            yield ('delete',  i1+j_len,i2, j2, j2)
           else:
             # same length
-            yield (tag, i1, i2, j1, j2, hint)
+            yield (tag, i1, i2, j1, j2)
         else:
-          yield (tag, i1, i2, j1, j2, hint)
+          yield (tag, i1, i2, j1, j2)
+
+
+    def opcodes_post_proc(iter_list):
+      for tag, i1, i2, j1, j2, hint in opcodes_find_moved(
+                                        opcodes_replace_to_del_ins(
+                                         iter_list)):
+        yield (tag, i1,i2, j1,j2, hint)
+
 
     print("SequenceMatcher get_opcodes()")
     for tag, i1, i2, j1, j2, hint in opcodes_post_proc(s.get_opcodes()):
@@ -1196,9 +1233,13 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
           continue
       elif tag == "delete":
         if 'd' in ops:
-          attr = ext['d'].copy()
+          if len(hint.get('ref',[])):
+            attr = ext['e'].copy()      # use the extra color for move-away
+            attr['t'] = 'del-mov'
+          else:
+            attr = ext['d'].copy()      # use the color for delete
+            attr['t'] = 'del'
           attr['o'] = catwords(wordlist, i1, i2)
-          attr['t'] = 'del'
           j2 = j1 + 1     # so that the create_mark loop below executes once.
         else:
           continue
@@ -1208,8 +1249,14 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
           attr['t'] = 'add'
         else:
           continue
+      elif tag == "move":
+        if 'a' in ops:
+          attr = ext['m'].copy()
+          attr['t'] = 'mov'
+        else:
+          continue
       else:
-        print("SequenceMatcher returned unknown tag: %s" % tag)
+        print("unknown opcode: %s" % tag)
         continue
       # print("len(wl_new)=%d, j in [%d:%d] %s" % (len(wl_new), j1, j2,tag))
       for j in range(j1,j2):

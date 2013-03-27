@@ -11,7 +11,7 @@ py3pdf=$(echo $out | grep 'No module named pyPdf')
 ver=$(echo $out | grep 'version: ')
 
 # at least we got this far.
-assertTrue "testpy3 expect missing python3-pyPdf" '[[ -n "$py3pdf" ]]'
+# assertTrue "testpy3 missing python3-pyPdf" '[[ -n "$py3pdf" ]]'
 echo ignored: missing python3-pyPdf
 startSkipping
 assertTrue "testpy3 --help contains version" '[[ -n "$ver" ]]'
