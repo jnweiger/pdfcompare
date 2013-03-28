@@ -66,10 +66,12 @@
 #                      - sorted command line options alphabetically.
 # 2013-02-09, V1.5.1 jw - added test/python3.sh -- 
 #                        cannot test much, too many modules missing.
-#  2013-03-26, V1.6  jw - added experimental opcodes_find_moved()
+# 2013-03-26, V1.6  jw - added experimental opcodes_find_moved()
 #                        Although theoretically quadratic runtime, this 
 #                        contributes less than 2 seconds runtime to
 #                        490 pages sleha: 371.254u 1.104s 6:20.49 97.8% 
+#                       - long delete popups truncated.
+# 2013-03-28, V1.6.1 jw - new option --below added, helps with obscure crashes in pyPDF.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -95,7 +97,7 @@
 # Compatibility for older Python versions
 from __future__ import with_statement
 
-__VERSION__ = '1.6'
+__VERSION__ = '1.6.1'
 
 try:
   # python2
@@ -633,6 +635,8 @@ def main():
   parser.def_marks = 'A,D,C'
   parser.def_features = 'H,C,P,N,W,B'
   parser.def_margins = '0,0,0,0'
+  parser.def_margins = '0,0,0,0'
+  parser.def_below = False
   parser.add_argument("-c", "--compare-text", metavar="OLDFILE",
                       help="mark added, deleted and replaced text (or see -m) with regard to OLDFILE. \
                             File formats .pdf, .xml, .txt are recognized by their suffix. \
@@ -666,6 +670,8 @@ def main():
   parser.add_argument("-t", "--transparency", type=float, default=parser.def_trans, metavar="TRANSP", 
                       help="set transparency of the highlight; invisible: 0.0; full opaque: 1.0; \
                       default: " + str(parser.def_trans))
+  parser.add_argument("-B", "--below", default=parser.def_below, action="store_true",
+                      help="Paint the highlight markers below the text. Try this if the normal merge crashes. Use with care, highlights may disappear below background graphics. Default: BELOW='"+str(parser.def_below)+"'")
   parser.add_argument("-C", "--search-color", metavar="NAME=R,G,B", action="append",
                       help="set colors of the search highlights as an RGB triplet; R,G,B ranges are 0.0-1.0 each; valid names are 'add,'delete','change','equal','margin','all'; default name is 'equal', which is also used for -s; default colors are " + 
                       " ".join(["%s=%s,%s,%s /*%s*/ " %(x_y[0],x_y[1][0],x_y[1][1],x_y[1][2],x_y[1][3]) for x_y in list(parser.def_colors.items())]))
@@ -850,7 +856,7 @@ def main():
   for i in range(first_page,last_page+1):
     if args.exclude_irrelevant_pages and len(page_marks[i]['rect']) == 0:
       continue
-    hitdetails = {'equ':0, 'add':0, 'del':0, 'chg':0, 'spl':0 }
+    hitdetails = {'equ':0, 'add':0, 'del':0, 'chg':0, 'spl':0, 'mov':0 }
     for r in page_marks[i]['rect']:
       tag = r.get('t','unk')
       if not tag in hitdetails:
@@ -858,7 +864,7 @@ def main():
       hitdetails[tag] += 1
       total_hits += 1
     hits_fmt = ''
-    for det,ch in (['add','+'], ['del','-'], ['chg','~'], ['equ','='], ['spl','!']):
+    for det,ch in (['add','+'], ['del','-'], ['chg','~'], ['equ','='], ['mov','>'], ['spl','!']):
       if hitdetails[det]: hits_fmt += '%s%d' % (ch,hitdetails[det])
 
     print(" page %d: %d hits %s" % (page_marks[i]['nr'], len(page_marks[i]['rect']), hits_fmt))
@@ -887,7 +893,7 @@ def main():
       pdf_str.seek(0,0)
     input2 = PdfFileReader(pdf_str)
     highlight_page = input2.getPage(0)
-    if 0:
+    if args.below:
       ## We can paint below or above the document.
       ## Below looks better, as the fonts are true black,
       ## but fails completely, if white background is drawn.
@@ -906,10 +912,16 @@ def main():
 
     pages_written += 1
 
+  print("saving %s" % args.output)
   if args.no_output is False:
     outputStream = file(args.output, "wb")
-    output.write(outputStream)
-    outputStream.close()
+    try:
+      output.write(outputStream)
+    except Exception as e:
+      import traceback
+      traceback.print_exc()
+      print("\n\nYou found a bug. Maybe retry with --below ?")
+      sys.exit(1)
     print("%s (%s pages) written." % (args.output, pages_written))
 
   if total_hits:
