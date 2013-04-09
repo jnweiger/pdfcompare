@@ -1,19 +1,25 @@
 TODO
 
+* Test with pyPDF2
+
+* issues:
+  - test on fossy: import argparse complains about already imported.
+  - Reproduce Tanja's crashes.
+
 * hunspell issues:
   - python-HunspellPure should be a separate module. Split it.
   - we artificially limit to [A-Z_-]+ for words. This is bad for german umlauts.
   - extend hunspell to allow a progress indicator callback.
     (counting newlines seen in response)
 
-* improve --log logfile generator.
-  produce a json/xml/csv/txt file describing the diffs, -s word locations 
-  and --spellcheck results.
-
 * testsuite
   - maybe prepare a test script that allows numbers to be off by some 
     percentage, but wants everything else precise.
     This helps with pdf source checking.
+
+* improve --log logfile generator.
+  produce a json/xml/csv/txt file describing the diffs, -s word locations 
+  and --spellcheck results.
 
 * one letter changes always become word changes.
   Either run in single character mode. Or try to trim the replaced text for 
@@ -23,7 +29,6 @@ TODO
   This is important when e.g. markdown source has a 0x20 space, but rendered
   PDF may have &nbsp; instead.
 
-* test on fossy: import argparse complains about already imported.
 
 
 DONE:
