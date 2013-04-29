@@ -73,6 +73,9 @@
 #                       - long delete popups truncated.
 # 2013-03-28, V1.6.1 jw - new option --below added, helps with obscure crashes in pyPDF.
 # 2013-04-29, V1.6.2 jw - COPYING file added, sr#173525 was declined
+#                       - Distinction between mediabox and cropbox implemented, so that
+#                         changebars and navigation is not outside the visible area.
+#                       - option --leftside added.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -197,10 +200,15 @@ def mergeAnnotsRelocate(dest_p, src_p, first_page=0):
       dest_p[Pdf.NameObject("/Annots")] = annots
 
 
-def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_w=0.007, min_w=0.01, ext_w=0.05, features='C,H,A,N'):
+def page_changemarks(canvas, mediabox, cropbox, marks, page_idx, trans=0.5, leftside=None, cb_x=None, cb_w=0.007, min_w=0.01, ext_w=0.05, features='C,H,A,N'):
   # cb_x=0.98 changebar near right edge
   # cb_x=0.02 changebar near left edge
   # min_w=0.05: each mark is min 5% of the page width wide. If not we add extenders.
+  if cb_x is None:
+    if leftside:
+      cb_x=0.02
+    else:
+      cb_x=0.98
 
   anno=False
   highlight=False
@@ -217,8 +225,10 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
   # mediabox [0, 0, 612, 792], list of 4x float or FloatObject
   # FloatObject does not support arithmetics with float. Needs casting. Sigh.
   # marks = { h:1188, w:918, x:0, y:0, rect: [{x,y,w,h,t},...], nr:1, nav_fwd:9, nav_bwd:4 }
-  def x2c(x):
+  def mx2c(x):
     return (0.0+x*float(mediabox[2])/marks['w'])
+  def cx2c(x):
+    return (0.0+x*float(cropbox[2])/marks['w'])
   def w2c(w):
     return (0.0+w*float(mediabox[2])/marks['w'])
   def y2c(y):
@@ -227,22 +237,28 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
     return (0.0+h*float(mediabox[3])/marks['h'])
 
   def nav_mark_fwd(canv, target_page, radius=5):
-    w,h = canv._pagesize
-    w=float(w)
-    h=float(h)
+    w=float(cropbox[2])         # not MediaBox!
+    h=float(cropbox[3])
     r = w * radius * 0.01       # percent of page width
-    canv.wedge(w-r-r,-r, w,r,     45,90, fill=1, stroke=0)     # bottom
+    if leftside:
+      x=0
+    else:
+      x=w-r-r
+    canv.wedge(x,-r, x+r+r,r,     45,90, fill=1, stroke=0)     # bottom
     dest = "jump_"+str(canv.getPageNumber())
-    canv.linkAbsolute(page_ref_magic+str(target_page), dest, (w-r-r,0, w,r))
+    canv.linkAbsolute(page_ref_magic+str(target_page), dest, (x,0, x+r+r,r))
 
   def nav_mark_bwd(canv, target_page, radius=5):
-    w,h = canv._pagesize
-    w=float(w)
-    h=float(h)
+    w=float(cropbox[2])         # not MediaBox!
+    h=float(cropbox[3])
     r = w * radius * 0.01       # percent of page width
-    canv.wedge(w-r-r,h-r, w,h+r, 225,90, fill=1, stroke=0)     # top
+    if leftside:
+      x=0
+    else:
+      x=w-r-r
+    canv.wedge(x,h-r, x+r+r,h+r, 225,90, fill=1, stroke=0)     # top
     dest = "jump_"+str(canv.getPageNumber())
-    canv.linkAbsolute(page_ref_magic+str(target_page), dest, (w-r-r,h, w,h-r))
+    canv.linkAbsolute(page_ref_magic+str(target_page), dest, (x,h, x+r+r,h-r))
 
   def anno_popup(canv, x,y, w,h, mark):
     # We misuse linkURL() as this is the only annotation, that a) can be written with reportlab() and b)
@@ -296,28 +312,29 @@ def page_changemarks(canvas, mediabox, marks, page_idx, trans=0.5, cb_x=0.98,cb_
       if debug > 1: print("min_w:%s (%s)" % (min_w, w))
       if highlight:
         # delete marker: two horizontal and one vertical bar.
-        canvas.rect(x2c(x-ext_w),y2c(y+0.2*h), w2c(w+2*ext_w),h2c(0.2*h), fill=1, stroke=0)
-        canvas.rect(x2c(x-ext_w),y2c(y-(highlight_height-0.2)*h), w2c(w+2*ext_w),h2c(0.2*h), fill=1, stroke=0)
+        canvas.rect(mx2c(x-ext_w),y2c(y+0.2*h), w2c(w+2*ext_w),h2c(0.2*h), fill=1, stroke=0)
+        canvas.rect(mx2c(x-ext_w),y2c(y-(highlight_height-0.2)*h), w2c(w+2*ext_w),h2c(0.2*h), fill=1, stroke=0)
         x = x - (0.5 * (min_w-w))
-        canvas.rect(x2c(x),y2c(y),w2c(min_w),h2c(h*(highlight_height-0.2)), fill=1, stroke=0)
+        canvas.rect(mx2c(x),y2c(y),w2c(min_w),h2c(h*(highlight_height-0.2)), fill=1, stroke=0)
       if anno:
-        anno_popup(canvas, x2c(x),y2c(y),    w2c(min_w),h2c(h*highlight_height), m)
+        anno_popup(canvas, mx2c(x),y2c(y),    w2c(min_w),h2c(h*highlight_height), m)
     else:
       # multiply height h with (highlight_height -- ca 1.2) to add some top 
       # padding, similar to the bottom padding that is automatically added
       # due to descenders extending across the font baseline.
       if highlight:
         if m['t'] == 'spl':
-          canvas.rect(x2c(x),y2c(y),    w2c(w),h2c(h*0.2), fill=1, stroke=0) # underline only
+          canvas.rect(mx2c(x),y2c(y),    w2c(w),h2c(h*0.2), fill=1, stroke=0) # underline only
         else:
-          canvas.rect(x2c(x),y2c(y),    w2c(w),h2c(h*highlight_height), fill=1, stroke=0)
+          canvas.rect(mx2c(x),y2c(y),    w2c(w),h2c(h*highlight_height), fill=1, stroke=0)
       if anno:
-        anno_popup(canvas, x2c(x),y2c(y),    w2c(w),h2c(h*highlight_height), m)
+        anno_popup(canvas, mx2c(x),y2c(y),    w2c(w),h2c(h*highlight_height), m)
 
     if changebar:
-      canvas.rect(x2c(cb_x),  y2c(y),w2c(cb_w),  h2c(h*highlight_height), fill=1, stroke=1)
+      # need the cropbox coordinate system to find the visible right edge
+      canvas.rect(cx2c(cb_x),  y2c(y),w2c(cb_w),  h2c(h*highlight_height), fill=1, stroke=1)
       if debug > 1:
-        canvas.drawString(x2c(x),y2c(y),'.(%d,%d)%s(%d,%d)' % (x2c(x),y2c(y),m['t'],x,y))
+        canvas.drawString(cx2c(x),y2c(y),'.(%d,%d)%s(%d,%d)' % (mx2c(x),y2c(y),m['t'],x,y))
         pprint(m)
         return      # shortcut, only the first word of the page
 
@@ -330,13 +347,19 @@ def page_watermark(canv, box, argv, color=[1,0,1], trans=0.5, p_w=None, p_h=None
   if 'W' in features: f_watermark=True
 
   if f_bordermargins and margins:
-    w,h = canv._pagesize
-    w=float(w)
-    h=float(h)
+    w=float(box[2])         # not MediaBox!
+    h=float(box[3])
+    # w,h = canv._pagesize
+    # w=float(w)
+    # h=float(h)
     m_n=margins['n']*float(box[3])/p_h
     m_e=margins['e']*float(box[2])/p_w
     m_w=margins['w']*float(box[2])/p_w
     m_s=margins['s']*float(box[3])/p_h
+    # m_n=margins['n']*p_h
+    # m_e=margins['e']*p_w
+    # m_w=margins['w']*p_w
+    # m_s=margins['s']*p_h
     canv.setFillColor(Color(margins['c'][0],margins['c'][1],margins['c'][2], alpha=trans))
     if m_n: canv.rect(0,h-m_n, w,m_n, fill=1, stroke=0)
     if m_s: canv.rect(0,0, w,m_s, fill=1, stroke=0)
@@ -691,6 +714,8 @@ def main():
                       help="print the version number and exit")
   parser.add_argument("-X", "--no-compression", default=False, action="store_true",
                       help="write uncompressed PDF. Default: FlateEncode filter compression.")
+  parser.add_argument("--leftside", default=False, action="store_true",
+                      help="put changebars and navigation at the left hand side of the page. Default: right hand side.")
   parser.add_argument("infile", metavar="INFILE", help="the input file")
   parser.add_argument("infile2", metavar="INFILE2", nargs="?", help="optional 'newer' input file; alternate syntax to -c")
   args = parser.parse_args()      # --help is automatic
@@ -872,17 +897,22 @@ def main():
     # pprint(hitdetails)
 
     page = input1.getPage(i)
-    box = page['/MediaBox']     # landscape look like [0, 0, 794, 595]
+    mbox = page['/MediaBox']     # landscape look like [0, 0, 794, 595]
+    cbox= page.get('/CropBox', page.get('/TrimBox', mbox))
+    # IBM delivers documents with 
+    # '/TrimBox': [0, 0, 612, 792], '/CropBox': [0, 0, 612, 792], '/MediaBox': [0, 0, 842, 842]
+    # where the printable text lives in the MediaBox coordinate system for scaling, 
+    # but all my watermark, changemark, and such must be placed inside the CropBox 
 
     ## create a canvas of correct size, 
     ## paint semi-transparent highlights on the canvas,
     ## then save the canvas to memory string as proper PDF,
     ## merge this string ontop of the original page.
     pdf_str = StringIO()
-    c = canvas.Canvas(pdf_str, pagesize=(box[2],box[3]))
-    page_watermark(c, box, sys.argv, color=args.search_colors['E'], trans=args.transparency, 
+    c = canvas.Canvas(pdf_str, pagesize=(mbox[2],mbox[3]))
+    page_watermark(c, cbox, sys.argv, color=args.search_colors['E'], trans=args.transparency, 
                    p_w=page_marks[i]['w'], p_h=page_marks[i]['h'], margins=margins, features=args.features)
-    page_changemarks(c, box, page_marks[i], i-first_page, trans=args.transparency, features=args.features)
+    page_changemarks(c, mbox, cbox, page_marks[i], i-first_page, trans=args.transparency, leftside=args.leftside, features=args.features)
 
     # c.textAnnotation('Here is a Note', Rect=[34,0,0,615], addtopage=1,Author='Test Opacity=0.1',Color=[0.7,0.8,1],Type='/Comment',Opacity=0.1)
     # c.linkURL(".: Here is a Note", (30,10,200,20), relative=0, Border="[ 1 1 1 ]")
