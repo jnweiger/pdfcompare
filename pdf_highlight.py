@@ -72,6 +72,7 @@
 #                        490 pages sleha: 371.254u 1.104s 6:20.49 97.8% 
 #                       - long delete popups truncated.
 # 2013-03-28, V1.6.1 jw - new option --below added, helps with obscure crashes in pyPDF.
+# 2013-04-29, V1.6.2 jw - COPYING file added, sr#173525 was declined
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756

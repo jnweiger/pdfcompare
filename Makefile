@@ -1,5 +1,5 @@
 
-VER=1.6.1
+VER=1.6.2
 D=dist/pdfcompare-$(VER)
 EXCL=--exclude \*.orig --exclude \*~
 
@@ -19,6 +19,7 @@ tar dist:
 	rm -rf dist
 	mkdir -p $D
 	ln -s ../../pdf_highlight.py $D/pdfcompare.py
+	ln -s ../../COPYING $D/
 	ln -s ../../test $D/test
 	cd dist; tar jhcvf ../pdfcompare-$(VER).tar.bz2 pdfcompare-$(VER) $(EXCL)
 	rm -rf dist
