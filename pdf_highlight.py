@@ -76,6 +76,8 @@
 #                       - Distinction between mediabox and cropbox implemented, so that
 #                         changebars and navigation is not outside the visible area.
 #                       - option --leftside added.
+# 2013-05-07, V1.6.3 jw - Not-strict improved: better ignore hyphenation change and dotted lines.
+#                         Debugging "mergeAnnots failed: page_idx 18 out of range. Have 10"
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -101,7 +103,7 @@
 # Compatibility for older Python versions
 from __future__ import with_statement
 
-__VERSION__ = '1.6.1'
+__VERSION__ = '1.6.3'
 
 try:
   # python2
@@ -247,6 +249,7 @@ def page_changemarks(canvas, mediabox, cropbox, marks, page_idx, trans=0.5, left
     canv.wedge(x,-r, x+r+r,r,     45,90, fill=1, stroke=0)     # bottom
     dest = "jump_"+str(canv.getPageNumber())
     canv.linkAbsolute(page_ref_magic+str(target_page), dest, (x,0, x+r+r,r))
+    print "nav_mark_fwd: %s + %s, dest=%s" % (page_ref_magic, target_page, dest)
 
   def nav_mark_bwd(canv, target_page, radius=5):
     w=float(cropbox[2])         # not MediaBox!
@@ -1227,15 +1230,28 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         if tag == "replace":
           i_len = i2-i1
           j_len = j2-j1
-          if not strict and i_len == 2 and j_len == 1:
-            if debug:
-              print("not strict: check '%s','%s' -> '%s'" % (wordlist[i1][0],wordlist[i1+1][0],wl_new[j1][0]))
-            # check, if we can optimize it away
-            m = re.match("(.*)-$", wordlist[i1][0])
-            if m and m.group(1) + wordlist[i1+1][0] == wl_new[j1][0]:
+          if not strict:
+            cat_i = "".join(map(lambda x: x[0]+'?', wordlist[i1:i2]))
+            cat_j = "".join(map(lambda x: x[0]+'?', wl_new[j1:j2]))
+            nohyp_i = re.sub("\-\?","",cat_i)
+            nohyp_j = re.sub("\-\?","",cat_j)
+            if (nohyp_i == nohyp_j):
               if debug:
-                print("not strict: ign '%s','%s' -> '%s'" % (wordlist[i1][0],wordlist[i1+1][0],wl_new[j1][0]))
-              continue      # "foo-", "bar" became "foobar"
+                print("not strict: ign: '%s' -> '%s'" % (cat_i, cat_j))
+              # 'docu-','mentation' became 'documen-','tation'
+              # "foo-", "bar" became "foobar"
+              continue     
+
+            if (i_len > 1 and j_len > 1):
+              mi = re.match("[\._=-]{7,}$", wordlist[i1][0])
+              mj = re.match("[\._=-]{7,}$", wl_new[j1][0])
+              if mi and mj:
+                i1 = i1+1
+                j1 = j1+1
+                i_len = i_len-1
+                j_len = j_len-1
+                # '..........................','266' -> '.................................','267'
+
           if i_len < j_len:
             # print("getting longer by %d" % (j_len-i_len))
             yield ('replace',  i1,i2, j1,j1+i_len)
