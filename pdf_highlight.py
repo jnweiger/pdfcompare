@@ -77,9 +77,12 @@
 #                         changebars and navigation is not outside the visible area.
 #                       - option --leftside added.
 # 2013-05-07, V1.6.3 jw - Not-strict improved: better ignore hyphenation change and dotted lines.
-#                         Debugging "mergeAnnots failed: page_idx 18 out of range. Have 10"
+#                         Debugging "mergeAnnots failed: page_idx 18 out of range. Have 10" - no help.
 # 2013-05-07, V1.6.4 jw - Allow pdftohtml to produce slightly invalid xml.
 #                         We compensate using a fallback that erases all <a...> ... </a> tags.
+#
+#                         Debugging "mergeAnnots failed: page_idx 18 out of range. Have 10" - no help.
+#                         passing -l -f to pdftohtml, but this gives no effect speed  later on. Strange.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -402,7 +405,7 @@ def page_watermark(canv, box, argv, color=[1,0,1], trans=0.5, p_w=None, p_h=None
 #     super(RelaxedXMLParser,self).feed(data)
 
 
-def pdf2xml(parser, infile, key=''):
+def pdf2xml(parser, infile, key='', firstpage=None, lastpage=None):
   """ read a pdf file with pdftohtml and parse the resulting xml into a dom tree
       the first parameter, parser is only used for calling exit() with proper messages.
 
@@ -411,13 +414,13 @@ def pdf2xml(parser, infile, key=''):
       is attemted, if the normal cElementTree parser fails.
       This compensates for a bug in pdftohtml -xml yielding invalid xml.
   """
-  dom = do_pdf2xml(parser, infile, key='', relaxed=False)
+  dom = do_pdf2xml(parser, infile, key=key, firstpage=firstpage, lastpage=lastpage, relaxed=False)
   if dom is None:
     print(" pdf2xml retrying more relaxed ...")
-    dom = do_pdf2xml(parser, infile, key='', relaxed=True)
+    dom = do_pdf2xml(parser, infile, key=key, firstpage=firstpage, lastpage=lastpage, relaxed=True)
   return dom
 
-def do_pdf2xml(parser, infile, key='', relaxed=False):
+def do_pdf2xml(parser, infile, key='', firstpage=None, lastpage=None, relaxed=False):
   """ read a pdf file with pdftohtml and parse the resulting xml into a dom tree
       the first parameter, parser is only used for calling exit() with proper messages.
 
@@ -425,6 +428,10 @@ def do_pdf2xml(parser, infile, key='', relaxed=False):
       for some cases is provided, if relaxed=True.
   """
   pdftohtml_cmd = ["pdftohtml", "-q", "-i", "-nodrm", "-nomerge", "-stdout", "-xml"]
+  if firstpage is not None:
+    pdftohtml_cmd += ["-f", firstpage]
+  if lastpage is not None:
+    pdftohtml_cmd += ["-l", lastpage]
   if len(key):
     pdftohtml_cmd += ["-upw", key]
   try:
@@ -810,12 +817,12 @@ def main():
 
   if not os.access(args.infile, os.R_OK):
     parser.exit("Cannot read input file: %s" % args.infile)
-  dom1 = pdf2xml(parser, args.infile, args.decrypt_key)
+  dom1 = pdf2xml(parser, args.infile, key=args.decrypt_key, firstpage=args.first_page, lastpage=args.last_page)
   dom2 = None
   wordlist2 = None
   if args.compare_text:
     if re.search('\.pdf$', args.compare_text, re.I):
-      dom2 = pdf2xml(parser, args.compare_text, args.decrypt_key)
+      dom2 = pdf2xml(parser, args.compare_text, key=args.decrypt_key, firstpage=args.first_page, lastpage=args.last_page)
       first_page = args.first_page
       if first_page is not None: first_page = int(first_page) - 1
       last_page = args.last_page
