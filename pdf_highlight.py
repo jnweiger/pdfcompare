@@ -78,6 +78,8 @@
 #                       - option --leftside added.
 # 2013-05-07, V1.6.3 jw - Not-strict improved: better ignore hyphenation change and dotted lines.
 #                         Debugging "mergeAnnots failed: page_idx 18 out of range. Have 10"
+# 2013-05-07, V1.6.4 jw - Allow pdftohtml to produce slightly invalid xml.
+#                         We compensate using a fallback that erases all <a...> ... </a> tags.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -103,7 +105,7 @@
 # Compatibility for older Python versions
 from __future__ import with_statement
 
-__VERSION__ = '1.6.3'
+__VERSION__ = '1.6.4'
 
 try:
   # python2
@@ -249,7 +251,8 @@ def page_changemarks(canvas, mediabox, cropbox, marks, page_idx, trans=0.5, left
     canv.wedge(x,-r, x+r+r,r,     45,90, fill=1, stroke=0)     # bottom
     dest = "jump_"+str(canv.getPageNumber())
     canv.linkAbsolute(page_ref_magic+str(target_page), dest, (x,0, x+r+r,r))
-    print "nav_mark_fwd: %s + %s, dest=%s" % (page_ref_magic, target_page, dest)
+    if debug:
+      print("nav_mark_fwd: %s + %s, dest=%s" % (page_ref_magic, target_page, dest))
 
   def nav_mark_bwd(canv, target_page, radius=5):
     w=float(cropbox[2])         # not MediaBox!
@@ -381,9 +384,45 @@ def page_watermark(canv, box, argv, color=[1,0,1], trans=0.5, p_w=None, p_h=None
     canv.drawString(15,10,text)
 
 
+# import xml.etree.ElementTree as pET
+# class RelaxedXMLParser(pET.XMLParser):
+#   """
+#   We need to handle misplaced closing tags gracefully:
+#   <i>Scanning Issue<a href="http://support.novell.com/">s</i>and</a>
+#   CAUTION: this approach is not safe. The misplaced tags may 
+#   be at the border of a feed data buffer. We have no way to look ahead
+#   or behind in this interface. 
+#   It fails miserably, when the <a ...> tag crosses buffer boundaries.
+#   """
+#   def feed(self,data):
+#     dlen = len(data)
+#     # data = re.sub("</?i>","", data)           # <i> only trigger the issue
+#     data = re.sub("(<a.*?>|</a>)","", data)      # <a...> </a> appear to be misplaced.
+#     # print >>sys.stderr, "FEEED", dlen, len(data), "XX "+ data[0:100] + " XX"
+#     super(RelaxedXMLParser,self).feed(data)
+
+
 def pdf2xml(parser, infile, key=''):
   """ read a pdf file with pdftohtml and parse the resulting xml into a dom tree
       the first parameter, parser is only used for calling exit() with proper messages.
+
+      FIXME: a fallback with a preprocessing xml parser (slower and more memory 
+      consuming, but irrelevant, considered the slowness of SequenceMatcher...)
+      is attemted, if the normal cElementTree parser fails.
+      This compensates for a bug in pdftohtml -xml yielding invalid xml.
+  """
+  dom = do_pdf2xml(parser, infile, key='', relaxed=False)
+  if dom is None:
+    print(" pdf2xml retrying more relaxed ...")
+    dom = do_pdf2xml(parser, infile, key='', relaxed=True)
+  return dom
+
+def do_pdf2xml(parser, infile, key='', relaxed=False):
+  """ read a pdf file with pdftohtml and parse the resulting xml into a dom tree
+      the first parameter, parser is only used for calling exit() with proper messages.
+
+      CAUTION: this uses pdftohtml -xml, which may return invalid xml. A workaround
+      for some cases is provided, if relaxed=True.
   """
   pdftohtml_cmd = ["pdftohtml", "-q", "-i", "-nodrm", "-nomerge", "-stdout", "-xml"]
   if len(key):
@@ -391,12 +430,22 @@ def pdf2xml(parser, infile, key=''):
   try:
     (to_child, from_child) = os.popen2(pdftohtml_cmd + [infile])
   except Exception as e:
-    parser.exit("pdftohtml -xml failed: " + str(e))
+    print(" ".join(pdftohtml_cmd + [infile]))
+    parser.exit("pdftohtml -xml failed: " + " ".join(pdftohtml_cmd + [infile]) + ": " + str(e))
 
   try:
-    dom = ET.parse(from_child)
+    if relaxed:
+      data = from_child.read()
+      data = re.sub("(<a.*?>|</a>)","", data)      # <a...> </a> appear to be misplaced.
+      dom = ET.parse(StringIO(data))
+    else:
+      dom = ET.parse(from_child)
   except Exception as e:
-    parser.exit("pdftohtml -xml failed.\nET.parse: " + str(e) + ")\n\n" + parser.format_usage())
+    print(" ".join(pdftohtml_cmd + [infile]))
+    if relaxed:
+      parser.exit("pdftohtml -xml failed.\nET.parse: " + str(e) + ")\n\n" + parser.format_usage())
+    else:
+      return None
   print("pdf2xml done")
   return dom
 
