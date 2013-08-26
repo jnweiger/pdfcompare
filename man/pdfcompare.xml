@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
+                         "http://www.docbook.org/xml/4.5/docbookx.dtd"
+[
+  <!ENTITY product "pdfcompare">
+  <!ENTITY cmd     "pdfcompare">
+]>
+<refentry lang="en" id="pdfcompare">
+  <refentryinfo>
+      <productname>&product;</productname>
+      <author>
+        <firstname>Jürgen</firstname>
+        <surname>Weigert</surname>
+        <contrib>Developer</contrib>
+      </author>
+    <othercredit class="technicaleditor">
+      <firstname>Thomas</firstname>
+      <surname>Schraitle</surname>
+      <email>toms@opensuse.org</email>
+      <contrib>Manpage author</contrib>
+    </othercredit>
+  </refentryinfo>
+  <refmeta>
+      <refentrytitle>&cmd;</refentrytitle>
+      <manvolnum>1</manvolnum>
+      <refmiscinfo class="version">@VERSION@</refmiscinfo>
+      <refmiscinfo class="source">https://github.com/jnweiger/pdfcompare</refmiscinfo>
+      <!--<refmiscinfo class="manual"></refmiscinfo>-->
+   </refmeta>
+  
+  <refnamediv>
+      <refname>&product;</refname>
+      <refpurpose>Highlight words in a PDF file</refpurpose>
+   </refnamediv>
+  
+  <refsynopsisdiv id="calabash.synopsis">
+      <title>Synopsis</title>
+      <cmdsynopsis><command>&cmd;</command>
+        <arg choice="opt">-h</arg>
+        <arg choice="opt">-c <replaceable>OLDFILE</replaceable></arg>
+        <arg choice="opt">-d <replaceable>DECRYPT_KEY</replaceable></arg>
+        <arg choice="opt">-e</arg>
+        <arg choice="opt">-i</arg>
+        <arg choice="opt">-l <replaceable>LOGFILE</replaceable></arg>
+        <arg choice="opt">-m <replaceable>OPS</replaceable></arg>
+        <arg choice="opt">-n</arg>
+        <arg choice="opt">-o <replaceable>OUTFILE</replaceable></arg>
+        <arg choice="opt">-s <replaceable>WORD_REGEXP</replaceable></arg>
+        <arg choice="opt">--spell</arg>
+        <arg choice="opt">--strict</arg>
+        <arg choice="opt">-t <replaceable>TRANSP</replaceable></arg>
+        <arg choice="opt">-B</arg>
+        <arg choice="opt">-C NAME=<replaceable>R</replaceable>,<replaceable>G</replaceable>,<replaceable>B</replaceable></arg>
+        <arg choice="opt">-D</arg>
+        <arg choice="opt">-F <replaceable>FIRST_PAGE</replaceable></arg>
+        <arg choice="opt">-L <replaceable>LAST_PAGE</replaceable></arg>
+        <arg choice="opt">-M N,E,W,S</arg>
+        <arg choice="opt">-V</arg>
+        <arg choice="opt">-X</arg>
+        <sbr/>
+        <arg choice="req">INFILE</arg>
+        <arg choice="opt">INFILE2</arg>
+      </cmdsynopsis>
+  </refsynopsisdiv>
+  
+  <refsect1>
+    <title>Positional Arguments</title>
+    <variablelist>
+      <varlistentry>
+        <term><option>INFILE</option></term>
+        <listitem>
+          <para>the required PDF input file</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>INFILE2</option></term>
+        <listitem>
+          <para>an optional <quote>newer</quote> PDF input file;
+            alternate syntax to <option>-c</option></para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+  
+  <refsect1>
+    <title>Optional Arguments</title>
+    <variablelist>
+      <varlistentry id="pdfcompare.below">
+        <term><option>-B</option></term>
+        <term><option>--below</option></term>
+        <listitem>
+          <para>Paint the highlight markers below the text. Try this if
+            the normal merge crashes. Use with care, highlights may
+            disappear below background graphics. Default: BELOW='FALSE'</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.compare-text">
+        <term><option>-c <replaceable>OLDFILE</replaceable></option></term>
+        <term><option>--compare-text <replaceable>OLDFILE</replaceable></option></term>
+        <listitem>
+          <para>Mark added, deleted and replaced text (or see <option>-m</option>) with
+            regard to <replaceable>OLDFILE</replaceable>. File formats <filename>.pdf</filename>, 
+            <filename>.xml</filename>, <filename>.txt</filename> are
+            recognized by their suffix. The comparison works word by
+            word.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.search-color">
+        <term><option>-C NAME=<replaceable>R</replaceable>,<replaceable>G</replaceable>,<replaceable>B</replaceable></option></term>
+        <term><option>--search-color NAME=<replaceable>R</replaceable>,<replaceable>G</replaceable>,<replaceable>B</replaceable></option></term>
+        <listitem>
+          <para>Set colors of the search highlights as an RGB triplet;
+            R,G,B ranges are 0.0-1.0 each; valid names are
+            'add,'delete','change','equal','margin','all'; default name
+            is 'equal', which is also used for <option>-s</option>; default colors are
+            A=0.3,1,0.3 /*green*/ C=0.9,0.8,0 /*yellow*/ B=0.9,0.9,0.9
+            /*gray*/ E=1,0,1 /*pink*/ D=1,0.3,0.3 /*red*/ M=0.7,1,1
+            /*blue*/</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.debug">
+        <term><option>-D</option></term>
+        <term><option>--debug</option></term>
+        <listitem>
+          <para>Enable debugging. Prints more on stdout, dumps several
+            <filename>*.xml</filename> and <filename>*.pdf</filename>
+            files.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.exclude-irrelevant-pages">
+        <term><option>-e</option></term>
+        <term><option>--exclude-irrelevant-pages</option></term>
+        <listitem>
+          <para>With <option>-s</option>; show only matching pages. With
+          <option>-c</option>: show only changed pages; default:
+            reproduce all pages from <replaceable>INFILE</replaceable>
+            in <replaceable>OUTFILE</replaceable></para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.features">
+        <term><option>-f <replaceable>FEATURES</replaceable></option></term>
+        <term><option>--features <replaceable>FEATURES</replaceable></option></term>
+        <listitem>
+          <para>Specify how to mark. Allowed values are 'highlight',
+            'changebar', 'popup', 'navigation', 'watermark', 'margin'.
+            Default: H,C,P,N,W,B</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.first-page">
+        <term><option>-F <replaceable>FIRST_PAGE</replaceable></option></term>
+        <term><option>--first-page <replaceable>FIRST_PAGE</replaceable></option></term>
+        <listitem>
+          <para>Skip some pages at start of document; see also
+            <option>-L</option>; default: all pages</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.help">
+        <term><option>-h</option></term>
+        <term><option>--help</option></term>
+        <listitem>
+          <para>Show this help message and exit</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.nocase">
+        <term><option>-i</option></term>
+        <term><option>--nocase</option></term>
+        <listitem>
+          <para>Make <option>-s</option> case insensitive; default: case
+          sensitive</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.last-page">
+        <term><option>-L <replaceable>LAST_PAGE</replaceable></option></term>
+        <term><option>--last-page <replaceable>LAST_PAGE</replaceable></option></term>
+        <listitem>
+          <para>Limit pages processed; this counts pages, it does not
+            use document page numbers; see also <option>-F</option>; default: all
+            pages</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.log">
+        <term><option>-l <replaceable>LOGFILE</replaceable></option></term>
+        <term><option>--log <replaceable>LOGFILE</replaceable></option></term>
+        <listitem>
+          <para>Write an python datastructure describing all the overlay
+            objects on each page. Default none.</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.margins">
+        <term><option>-M N,E,W,S</option></term>
+        <term><option>--margins N,E,W,S</option></term>
+        <listitem>
+          <para>Specify margin space to ignore on each page. A margin
+            width is expressed in units of ca. 100dpi. Specify four
+            numbers in the order north,east,west,south. Default:
+            0,0,0,0</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.mark">
+        <term><option>-m <replaceable>OPS</replaceable></option></term>
+        <term><option>--mark <replaceable>OPS</replaceable></option></term>
+        <listitem>
+          <para>Specify what to mark. Used with <option>-c</option>. Allowed values are
+            'add','delete','change','equal'. Multiple values can be
+            listed comma-seperated; abbreviations are allowed. Default:
+            A,D,C</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.no-output">
+        <term><option>-n</option></term>
+        <term><option>--no-output</option></term>
+        <listitem>
+          <para>Do not write an output file; print diagnostics only;
+            default: write output file as per <option>-o</option></para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.output">
+        <term><option>-o <replaceable>OUTFILE</replaceable></option></term>
+        <term><option>--output <replaceable>OUTFILE</replaceable></option></term>
+        <listitem>
+          <para>Write output to FILE; default: <filename>output.pdf</filename></para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.spell">
+        <term><option>--spell</option></term>
+        <term><option>--spell-check</option></term>
+        <listitem>
+          <para>Run the text body of the (new) PDF through <command>hunspell</command>.
+            Unknown words are underlined. Use e.g. 'env DICTIONARY=de_DE
+            ...' (or en_US, ...) to specify the spelling dictionary, if
+            your system has more than one. Check with <command>hunspell
+              <option>-D</option></command> and
+            study <citerefentry>
+              <refentrytitle>hunspell</refentrytitle>
+              <manvolnum>1</manvolnum>
+            </citerefentry>. </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.strict">
+        <term><option>--strict</option></term>
+        <listitem>
+          <para>Show really all differences; default: ignore removed
+            hyphenation; ignore character spacing inside a word</para>
+        </listitem>
+      </varlistentry>      
+      <varlistentry id="pdfcompare.transparency">
+        <term><option>-t <replaceable>TRANSP</replaceable></option></term>
+        <term><option>--transparency <replaceable>TRANSP</replaceable></option></term>
+        <listitem>
+          <para>Set transparency of the highlight; invisible: 0.0; full
+            opaque: 1.0; default: 0.6 </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.version">
+        <term><option>-V</option></term>
+        <term><option>--version</option></term>
+        <listitem>
+          <para>Print the version number and exit</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry id="pdfcompare.no-compression">
+        <term><option>-X</option></term>
+        <term><option>--no-compression</option></term>
+        <listitem>
+          <para>Write uncompressed PDF. Default: FlateEncode filter
+            compression.</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+</refentry>
