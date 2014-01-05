@@ -59,6 +59,8 @@
 
 # Compatibility for older Python versions
 from __future__ import with_statement
+from __future__ import print_function
+# from __future__ import division
 
 __VERSION__ = '1.0'
 
@@ -147,7 +149,7 @@ def page_changemarks(canvas, mediabox, marks, trans=0.5, cb_x=0.98,cb_w=0.007, m
     # m = {'h': 23, 'c': [1,0,1], 't': 'Popular', 'w': 76.56716417910448, 'x': 221.0, 'y': 299}
     (x,y,w,h) = (m['x'], m['y'], m['w'], m['h'])
     if w < min_w:
-      if debug: print "min_w:%s (%s)" % (min_w, w)
+      if debug: print( "min_w:%s (%s)" % (min_w, w))
       if highlight:
         canvas.rect(x2c(x-ext_w),y2c(y+0.2*h), w2c(w+2*ext_w),h2c(0.2*h), fill=1, stroke=0)
         canvas.rect(x2c(x-ext_w),y2c(y-1.2*h), w2c(w+2*ext_w),h2c(0.2*h), fill=1, stroke=0)
@@ -200,7 +202,7 @@ def pdf2xml(parser, infile, key=''):
     dom = ET.parse(from_child)
   except Exception,e:
     parser.exit("pdftohtml -xml failed.\nET.parse: " + str(e) + ")\n\n" + parser.format_usage())
-  print "pdf2xml done"
+  print("pdf2xml done")
   return dom
 
 class DecoratedWord(list):
@@ -321,7 +323,7 @@ def xml2wordlist(dom, first_page=None, last_page=None):
       else:                     l = 't'
       wl += textline2wordlist(text, {'p':p_nr, 'l':l, 'x':x, 'y':y, 'w':w, 'h':h, 'f':f})
     #pprint(wl)
-  print "xml2wordlist: %d pages" % (p_nr-int(first_page))
+  print("xml2wordlist: %d pages" % (p_nr-int(first_page)))
   return wl
 
 def xml2fontinfo(dom, last_page=None):
@@ -334,7 +336,7 @@ def xml2fontinfo(dom, last_page=None):
         break
     p_nr += 1
     p_finfo = p_finfo.copy()
-    # print "----------------- page %s -----------------" % p.attrib['number']
+    # print("----------------- page %s -----------------" % p.attrib['number'])
 
     for fspec in p.findall('fontspec'):
       fname = fspec.attrib.get('family', 'Helvetica')
@@ -484,7 +486,7 @@ def main():
   if input1.getIsEncrypted():
     if input1.decrypt(args.decrypt_key):
       if len(args.decrypt_key):
-        print "Decrypted using key='%s'." % args.decrypt_key
+        print("Decrypted using key='%s'." % args.decrypt_key)
     else:
       parser.exit("decrypt(key='%s') failed." % args.decrypt_key)
 
@@ -496,7 +498,7 @@ def main():
     first_page = int(args.first_page)
     if first_page > last_page:
       first_page = last_page
-  print "input pages: %d-%d" % (first_page, last_page)
+  print("input pages: %d-%d" % (first_page, last_page))
 
   page_marks = pdfhtml_xml_find(dom1, re_pattern=args.search, 
       wordlist=wordlist2,
@@ -528,11 +530,11 @@ def main():
     di[Pdf.NameObject('/DiffCmd')] = Pdf.createStringObject(selfcmd)
     di[Pdf.NameObject('/ModDate')] = Pdf.createStringObject(time.strftime("D:%Y%m%d%H%M%S"))
     if debug:
-      print "DocumentInfo():"
+      print("DocumentInfo():")
       pprint(di)
     output._objects.append(di)
   except Exception,e:
-    print("WARNING: getDocumentInfo() failed: " + str(e) );
+    print("WARNING: getDocumentInfo() failed: " + str(e) )
 
   output._info = Pdf.IndirectObject(len(output._objects), 0, output)
 
@@ -553,7 +555,7 @@ def main():
     for det,ch in (['add','+'], ['del','-'], ['chg','~'], ['equ','=']):
       if hitdetails[det]: hits_fmt += '%s%d' % (ch,hitdetails[det])
 
-    print " page %d: %d hits %s" % (page_marks[i]['nr'], len(page_marks[i]['rect']), hits_fmt)
+    print(" page %d: %d hits %s" % (page_marks[i]['nr'], len(page_marks[i]['rect']), hits_fmt))
     # pprint(hitdetails)
 
     page = input1.getPage(i)
@@ -592,7 +594,7 @@ def main():
       page.mergePage(highlight_page)
       if highlight_page.has_key("/Annots"):
         if page.has_key("/Annots"):
-          print "Warning: Original Annotations overwritten. mergePage() cannot merge them."
+          print("Warning: Original Annotations overwritten. mergePage() cannot merge them.")
         page[Pdf.NameObject("/Annots")] = highlight_page["/Annots"]
       if not args.no_compression:
         page.compressContentStreams()
@@ -603,7 +605,7 @@ def main():
     outputStream = file(args.output, "wb")
     output.write(outputStream)
     outputStream.close()
-    print "%s (%s pages) written." % (args.output, pages_written)
+    print("%s (%s pages) written." % (args.output, pages_written))
 
   if total_hits:
     sys.exit(1)
@@ -648,11 +650,11 @@ def rendered_text_pos(string1, char_start, char_count, font=None, xoff=0, width=
   return (xoff+pre_w*ratio, str_w*ratio)
 
 def create_mark(text,offset,length, font, t_x, t_y, t_w, t_h, ext={}):
-  #print "word: at %d is '%s'" % (offset, text[offset:offset+length]),
+  #print("word: at %d is '%s'" % (offset, text[offset:offset+length]),)
     
   (xoff,width) = rendered_text_pos(text, offset, length,
                           font, float(t_x), float(t_w))
-  #print "  xoff=%.1f, width=%.1f" % (xoff, width)
+  #print("  xoff=%.1f, width=%.1f" % (xoff, width))
 
   mark = {'x':xoff, 'y':float(t_y)+float(t_h),
           'w':width, 'h':float(t_h), 't':text[offset:offset+length]}
@@ -680,7 +682,7 @@ def zap_letter_spacing(text):
   for w in l:
     if len(w) == 0: w = ' '
     t += w
-  #print "zap_letter_spacing('%s') -> '%s'" % (text,t)
+  #print("zap_letter_spacing('%s') -> '%s'" % (text,t))
   return t
 
 def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, first_page=None, last_page=None, mark_ops="D,A,C"):
@@ -786,11 +788,11 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
           i_len = i2-i1
           j_len = j2-j1
           if i_len < j_len:
-            # print "getting longer by %d" % (j_len-i_len)
+            # print("getting longer by %d" % (j_len-i_len))
             yield ('replace',  i1,i2, j1,j1+i_len)
             yield ('insert',   i2,i2, j1+i_len,j2)
           elif i_len > j_len:
-            # print "getting shorter by %d" % (i_len-j_len)
+            # print("getting shorter by %d" % (i_len-j_len))
             yield ('replace', i1,i1+j_len, j1, j2)
             yield ('delete',  i1+j_len,i2, j2, j2)
           else:
@@ -829,12 +831,12 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         else:
           continue
       else:
-        print "SequenceMatcher returned unknown tag: %s" % tag
+        print("SequenceMatcher returned unknown tag: %s" % tag)
         continue
-      # print "len(wl_new)=%d, j in [%d:%d] %s" % (len(wl_new), j1, j2,tag)
+      # print("len(wl_new)=%d, j in [%d:%d] %s" % (len(wl_new), j1, j2,tag))
       for j in range(j1,j2):
         if j >= len(wl_new):    # this happens with autojunk=False!
-          print "end of wordlist reached: %d" % j
+          print("end of wordlist reached: %d" % j)
           break
         markword(p_rect_dict, wl_new, j, tag, attr, fontinfo)
 
@@ -860,7 +862,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         text = zap_letter_spacing(text)
   
         #pprint([e.attrib, text])
-        #print "search (%s)" % re_pattern
+        #print("search (%s)" % re_pattern)
         flags = re.UNICODE
         if (nocase): flags |= re.IGNORECASE
         l = map(lambda x:len(x), re.split('('+re_pattern+')', text, flags=flags))
@@ -869,7 +871,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         offset = 0
         i = 0
         while (i < len(l)):
-          # print "offset=%d, i=%d, l=%s" % (offset, i, repr(l))
+          # print("offset=%d, i=%d, l=%s" % (offset, i, repr(l)))
           offset += l[i]
           if (l[i+1] > 0):
   

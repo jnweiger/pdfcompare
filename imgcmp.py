@@ -10,6 +10,8 @@
 # See also python-pHash, and python-opencv
 # http://stackoverflow.com/questions/13379909/compare-similarity-of-images-using-opencv-with-python
 
+from __future__ import print_function
+
 import sys, os, re, tempfile
 from pprint import pprint
 
@@ -18,14 +20,14 @@ from scipy.misc import imread
 from scipy.signal.signaltools import correlate2d as c2d
 
 if len(sys.argv) < 4:
-  print """Usage: %s FILE1 FILE2 N.NN
+  print("""Usage: %s FILE1 FILE2 N.NN
 
         FILE1,FILE2 can be in JPEG, PNG, or PDF format.
         N.NN should be a small floating point number. It represents 
         the allowed difference in the image metrics.
         correlate2d from scipy.signal.signaltools is used to compute 
         the metrics.
-  """ % sys.argv[0]
+  """ % sys.argv[0])
   sys.exit(0)
 
 
@@ -34,7 +36,7 @@ def load_img(fname):
      if re.search("\.pdf$", fname, re.I):
        # convert PDF to JPG
        tf = tempfile.NamedTemporaryFile(delete=True, suffix=".jpg")
-       print "creating %s" % tf.name
+       print("creating %s" % tf.name)
        os.system("convert '%s[0]' -geometry 100x100 '%s'" % (fname, tf.name))
        data = imread(tf.name)
        tf.close()
@@ -66,9 +68,9 @@ m = [c11.max(), c12.max(), c22.max()]
 
 diff_ab = 100 * (1-m[1]/m[0])
 diff_ba = 100 * (1-m[1]/m[2])
-print "diff a-b: %.2f%%" % (diff_ab)
-print "diff b-a: %.2f%%" % (diff_ba)
+print("diff a-b: %.2f%%" % (diff_ab))
+print("diff b-a: %.2f%%" % (diff_ba))
 fail = max(diff_ab,diff_ba) > diff_allowed
 if fail: pprint([c11.max(), c12.max(), c22.max()])
-print "limit: %.2f%% -> %s" % (diff_allowed, ("OK","FAIL")[fail])
+print("limit: %.2f%% -> %s" % (diff_allowed, ("OK","FAIL")[fail]))
 if fail: sys.exit(1)
