@@ -1,4 +1,5 @@
 #! /usr/bin/python
+# -*- coding: UTF-8 -*-
 #
 # compare two images using Scipy
 # (c) 2013 - jw@suse.de - distributer under GPL-2.0 or ask.

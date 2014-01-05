@@ -1,4 +1,5 @@
 #! /usr/bin/python
+# -*- coding: UTF-8 -*-
 #
 # pdf_highlight.py -- command line tool to show search or compare results in a PDF
 #
