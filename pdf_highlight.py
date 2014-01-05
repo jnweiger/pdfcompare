@@ -207,8 +207,8 @@ def pdf2xml(parser, infile, key=''):
   return dom
 
 class DecoratedWord(list):
-  def __eq__(a,b):
-    return a[0] == b[0]
+  def __eq__(self, other):
+    return self[0] == other[0]
   def __hash__(self):
     return hash(self[0])
 
