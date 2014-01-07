@@ -1,4 +1,5 @@
 #! /usr/bin/python
+# -*- coding: UTF-8 -*-
 #
 # pdf_highlight.py -- command line tool to show search or compare results in a PDF
 #
@@ -107,6 +108,8 @@
 
 # Compatibility for older Python versions
 from __future__ import with_statement
+from __future__ import print_function
+# from __future__ import division
 
 __VERSION__ = '1.6.4'
 
@@ -469,8 +472,9 @@ class DecoratedWord(list):
      punctuation) used for spell checking.
   """
 
-  def __eq__(a,b):
-    return a[0] == b[0]
+  def __eq__(self, other):
+    return self[0] == other[0]
+
   def __hash__(self):
     return hash(self[0])
 
@@ -918,8 +922,8 @@ def main():
       print("DocumentInfo():")
       pprint(di)
     output._objects.append(di)
-  except Exception as e:
-    print("WARNING: getDocumentInfo() failed: " + str(e) );
+  except Exception,e:
+    print("WARNING: getDocumentInfo() failed: " + str(e) )
 
   output._info = Pdf.IndirectObject(len(output._objects), 0, output)
 
@@ -1012,6 +1016,7 @@ def main():
       traceback.print_exc()
       print("\n\nYou found a bug. Maybe retry with --below ?")
       sys.exit(1)
+    outputStream.close()
     print("%s (%s pages) written." % (args.output, pages_written))
 
   if total_hits:
@@ -1064,7 +1069,7 @@ def rendered_text_pos(string1, char_start, char_count, font=None, xoff=0, width=
   return (xoff+pre_w*ratio, str_w*ratio)
 
 def create_mark(text,offset,length, font, t_x, t_y, t_w, t_h, ext={}):
-  #print("word: at %d is '%s'" % (offset, text[offset:offset+length]))
+  #print("word: at %d is '%s'" % (offset, text[offset:offset+length]),)
     
   (xoff,width) = rendered_text_pos(text, offset, length,
                           font, float(t_x), float(t_w))
@@ -1371,7 +1376,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
         else:
           continue
       else:
-        print("unknown opcode: %s" % tag)
+        print("SequenceMatcher returned unknown tag: %s" % tag)
         continue
       # print("len(wl_new)=%d, j in [%d:%d] %s" % (len(wl_new), j1, j2,tag))
       for j in range(j1,j2):
