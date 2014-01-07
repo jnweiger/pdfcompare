@@ -10,6 +10,8 @@ test:
 	env PATH=.:$$PATH refresh=$(refresh) sh ./restest.sh
 	rm pdfcompare
 
+# updates the testsuite after code changes 
+# that affect the visual representation.
 refresh:
 	# we only need to refresh restest.sh
 	env PATH=.:$$PATH refresh=yes sh ./restest.sh

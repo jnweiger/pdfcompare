@@ -2,8 +2,8 @@
 #
 # This script compares the output pdf of a new pdfcompare version
 # with a test-pdf. 
-###DONE diff geht nicht->'grep -a /Annot' vergleichen, pdftotext rpobieren o valides pdf
-# eventuell graphik rendern + vergleichen (wie pdf nach graphik?) 
+###DONE diff geht nicht->'grep -a /Annot' vergleichen, pdftotext probieren ob valides PDF
+# eventuell Graphik rendern + vergleichen (wie pdf nach graphik?) 
 #
 ## run once with refresh=yes, after you verified the test suite runs ok.
 #refresh=yes
