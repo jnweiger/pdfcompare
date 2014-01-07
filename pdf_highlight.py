@@ -77,13 +77,17 @@
 #                       - Distinction between mediabox and cropbox implemented, so that
 #                         changebars and navigation is not outside the visible area.
 #                       - option --leftside added.
-# 2013-05-07, V1.6.3 jw - Not-strict improved: better ignore hyphenation change and dotted lines.
-#                         Debugging "mergeAnnots failed: page_idx 18 out of range. Have 10" - no help.
+# 2013-05-07, V1.6.3 jw - Not-strict improved: better ignore hyphenation change
+#                         and dotted lines.  Debugging "mergeAnnots failed: page_idx 18 
+#                         out of range. Have 10" - no help.
 # 2013-05-07, V1.6.4 jw - Allow pdftohtml to produce slightly invalid xml.
-#                         We compensate using a fallback that erases all <a...> ... </a> tags.
-#
-#                         Debugging "mergeAnnots failed: page_idx 18 out of range. Have 10" - no help.
-#                         passing -l -f to pdftohtml, but this gives no effect speed  later on. Strange.
+#                         We compensate using a fallback that erases all <a...> ... </a> 
+#                         tags. Debugging "mergeAnnots failed: page_idx 18 out of range.
+#                         Have 10" - no help. New mergeAnnotsRelocate() solves this.
+#                         passing -l -f to pdftohtml, but this has no effect on speed 
+#                         later on. Strange.
+# 2014-01-07, V1.6.5 jw - manually merged https://github.com/jnweiger/pdfcompare/pull/4
+#                         hope, I did not break too much...
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -111,7 +115,7 @@ from __future__ import with_statement
 from __future__ import print_function
 # from __future__ import division
 
-__VERSION__ = '1.6.4'
+__VERSION__ = '1.6.5'
 
 try:
   # python2

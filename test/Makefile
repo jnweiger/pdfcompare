@@ -3,7 +3,13 @@ refresh=
 
 all: test
 
-test:
+test_requires:
+	@echo The selftest uses the following extra packages:
+	@rpm -q shunit2 || exit 2
+	@rpm -q python-scipy || exit 2
+	@echo -----------------------------------------------
+
+test: test_requires
 	ln -sf ../pdf_highlight.py pdfcompare
 	env PATH=.:$$PATH sh ./helptest.sh $(VER) VER=$(VER)
 	env PATH=.:$$PATH sh ./python3.sh
