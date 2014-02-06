@@ -6,7 +6,7 @@ from distutils.core import setup
 setup(name='pdfcompare',
       version='1.0',
       description='Compare two PDF files',
-      author='Juergen Weigert',
+      author='Jürgen Weigert',
       author_email='jw@suse.de',
       url='https://github.com/jnweiger/pdfcompare',
       scripts=['pdf_highlight.py', 'imgcmp.py'],
