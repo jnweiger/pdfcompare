@@ -1,7 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from distutils.core import setup
+from distutils.core import setup, Command
+
+
+class PyTest(Command):
+    description=""" Test command for pytest """
+    user_options = []
+    def initialize_options(self):
+        pass
+    def finalize_options(self):
+        pass
+    def run(self):
+        import sys, subprocess
+        errno = subprocess.call([sys.executable, 'runtests.py'])
+        raise SystemExit(errno)
+
 
 setup(name='pdfcompare',
       version='1.0',
@@ -18,6 +32,7 @@ setup(name='pdfcompare',
           'Programming Language :: Python :: 2.7',
           'Programming Language :: Python :: 3',
                   ],
+      cmdclass={'test': PyTest},
       long_description="".join(open('README.txt').readlines()),
       #packages=['pyPdf','reportlab.pdfgen','reportlab.lib.colors','pygame.font' ],
 # 
