@@ -1,20 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import sys 
 
-from distutils.core import setup, Command
+from distutils.core import setup
+from setuptools.command.test import test as TestCommand
 
-
-class PyTest(Command):
-    description=""" Test command for pytest """
-    user_options = []
-    def initialize_options(self):
-        pass
+class PyTest(TestCommand):
     def finalize_options(self):
-        pass
-    def run(self):
-        import sys, subprocess
-        errno = subprocess.call([sys.executable, 'runtests.py'])
-        raise SystemExit(errno)
+        TestCommand.finalize_options(self)
+        self.test_args = []
+        self.test_suite = True
+    def run_tests(self):
+        #import here, cause outside the eggs aren't loaded
+        import pytest
+        errno = pytest.main(self.test_args)
+        sys.exit(errno)
 
 
 setup(name='pdfcompare',
