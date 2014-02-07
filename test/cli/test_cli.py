@@ -19,4 +19,10 @@ def test_version():
 def test_pdfcompare_exists():
          assert os.path.exists('pdf_highlight.py')
 
+def test_scipy():
+         """
+         Checks, if the module scipy is available
+         """
+         import scipy 
+         assert scipy.__version__
 
