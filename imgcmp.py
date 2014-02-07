@@ -11,7 +11,7 @@
 # See also python-pHash, and python-opencv
 # http://stackoverflow.com/questions/13379909/compare-similarity-of-images-using-opencv-with-python
 
-from __future__ import print_function
+from __future__ import print_function, division
 
 import sys, os, re, tempfile
 from pprint import pprint
@@ -21,9 +21,23 @@ from scipy.misc import imread
 from scipy.signal.signaltools import correlate2d as c2d
 
 
+class CompareImageException(Exception):
+     """
+     Exception class for comparing two files 
+     """
+     def __init__(self, c11, c12, c22):
+         self.c11=c11
+         self.c12=c12
+         self.c22=c22
+     def __repr__(self):
+          return "(%.2f %.2f %.2f)" % (self.c11, self.c12, self.c22)
+     __str__=__repr__
 
 
 def load_img(fname):
+     """
+     Load and convert images
+     """
      # get JPG image as Scipy array, RGB (3 layer)
      if re.search("\.pdf$", fname, re.I):
        # convert PDF to JPG
@@ -44,7 +58,31 @@ def load_img(fname):
      # normalize per http://en.wikipedia.org/wiki/Cross-correlation
      return (data - data.mean()) / data.std()
 
+
+def compare(file1, file2, diff):
+     """
+     Compares two files (JPEG, PNG or PDF) 
+     """
+     im1 = load_img(file1)
+     im2 = load_img(file2)
+     c11 = c2d(im1, im1, mode='same')  # baseline
+     c22 = c2d(im2, im2, mode='same')  # baseline
+     c12 = c2d(im1, im2, mode='same')
+     m = [c11.max(), c12.max(), c22.max()]
+     diff_ab = 100 * (1-m[1]/m[0])
+     diff_ba = 100 * (1-m[1]/m[2])
+     
+     fail=max(diff_ab,diff_ba) > diff
+
+     if fail:
+          raise CompareImageException(c11.max(), c12.max(), c22.max())
+
+     return fail
+
 def main():
+     """
+     Compares two files (JPEG, PNG or PDF)
+     """
   if len(sys.argv) < 4:
     print("""Usage: %s FILE1 FILE2 N.NN
 
@@ -55,29 +93,13 @@ def main():
         the metrics.
     """ % sys.argv[0])
     sys.exit(0)
-   
+    diff_allowed=float(sys.argv[3])
+    try:
+         fail=compare(sys.argv[1],sys.argv[2],diff_allowed)
+    except CompareImageException as i:
+         print("error: %s" % i)
+    
 
-
-    im1 = load_img(sys.argv[1])
-    im2 = load_img(sys.argv[2])
-    diff_allowed = float(sys.argv[3])
-
-    #pprint([im1.shape])
-    #pprint([im2.shape])
-
-    c11 = c2d(im1, im1, mode='same')  # baseline
-    c22 = c2d(im2, im2, mode='same')  # baseline
-    c12 = c2d(im1, im2, mode='same')
-    m = [c11.max(), c12.max(), c22.max()]
-#   (42105.00000000259, 39898.103896795357, 16482.883608327804, 15873.465425120798)
-#   [7100.0000000003838, 7028.5659939232246, 7100.0000000000318]
-
-    diff_ab = 100 * (1-m[1]/m[0])
-    diff_ba = 100 * (1-m[1]/m[2])
-    print("diff a-b: %.2f%%" % (diff_ab))
-    print("diff b-a: %.2f%%" % (diff_ba))
-    fail = max(diff_ab,diff_ba) > diff_allowed
-    if fail: pprint([c11.max(), c12.max(), c22.max()])
     print("limit: %.2f%% -> %s" % (diff_allowed, ("OK","FAIL")[fail]))
     if fail: sys.exit(1)
 
