@@ -123,7 +123,7 @@ try:
 except ImportError:
   # python3, breaks python2-reportlab
   from io import StringIO
-from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
+from PyPDF2 import PdfFileWriter, PdfFileReader, generic as Pdf
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import Color
 import urllib   # used when normal encode fails.
@@ -933,6 +933,7 @@ def main():
 
   pages_written = 0
   total_hits = 0
+  outline = []
 
   page_idx = 0
   nav_bwd = None
@@ -961,6 +962,7 @@ def main():
       if hitdetails[det]: hits_fmt += '%s%d' % (ch,hitdetails[det])
 
     print(" page %d: %d hits %s" % (page_marks[i]['nr'], len(page_marks[i]['rect']), hits_fmt))
+    outline.append(" page %d: %d hits %s" % (page_marks[i]['nr'], len(page_marks[i]['rect']), hits_fmt))
     # pprint(hitdetails)
 
     page = input1.getPage(i)
@@ -1009,8 +1011,12 @@ def main():
       output.addPage(page)
 
     pages_written += 1
-
   print("saving %s" % args.output)
+  # add outline  
+  parent = output.addBookmark('Hits', 0) # add parent bookmark
+  for bm in outline:
+       output.addBookmark(bm,outline.index(bm),parent=parent)
+  
   if args.no_output is False:
     outputStream = file(args.output, "wb")
     try:
