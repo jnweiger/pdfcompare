@@ -88,6 +88,7 @@
 #                         later on. Strange.
 # 2014-01-07, V1.6.5 jw - manually merged https://github.com/jnweiger/pdfcompare/pull/4
 #                         hope, I did not break too much...
+# 2014-11-07, V1.6.6 jw - hint added for hunspell use: add word.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -755,7 +756,7 @@ def main():
   parser.add_argument("-s", "--search", metavar="WORD_REGEXP", 
                       help="highlight WORD_REGEXP")
   parser.add_argument("--spell", "--spell-check", default=False, action="store_true",
-                      help="run the text body of the (new) pdf through hunspell. Unknown words are underlined. Use e.g. 'env DICTIONARY=de_DE ...' (or en_US, ...) to specify the spelling dictionary, if your system has more than one. Check with 'hunspell -D' and study 'man hunspell'.")
+                      help="run the text body of the (new) pdf through hunspell. Unknown words are underlined. Use e.g. 'env DICTIONARY=en_US ...' (or de_DE, ...) to specify the spelling dictionary, if your system has more than one. To add new words to your private dictionary use e.g. 'echo >> ~/.hunspell_en_US ownCloud'. Check with 'hunspell -D' and study 'man hunspell'.")
   parser.add_argument("--strict", default=False, action="store_true",
                       help="show really all differences; default: ignore removed hyphenation; ignore character spacing inside a word")
   parser.add_argument("-t", "--transparency", type=float, default=parser.def_trans, metavar="TRANSP", 
