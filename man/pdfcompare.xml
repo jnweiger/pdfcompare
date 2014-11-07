@@ -226,10 +226,11 @@
         <term><option>--spell-check</option></term>
         <listitem>
           <para>Run the text body of the (new) PDF through <command>hunspell</command>.
-            Unknown words are underlined. Use e.g. 'env DICTIONARY=de_DE
-            ...' (or en_US, ...) to specify the spelling dictionary, if
-            your system has more than one. Check with <command>hunspell
-              <option>-D</option></command> and
+            Unknown words are underlined. Use e.g. 'env DICTIONARY=en_US
+            ...' (or de_DE, ...) to specify the spelling dictionary, if
+            your system has more than one. To add new words to your 
+            private dictionary use e.g. 'echo "ownCloud" >> ~/.hunspell_en_US'
+             Check with <command>hunspell <option>-D</option></command> and
             study <citerefentry>
               <refentrytitle>hunspell</refentrytitle>
               <manvolnum>1</manvolnum>
