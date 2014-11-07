@@ -116,7 +116,7 @@ from __future__ import with_statement
 from __future__ import print_function
 # from __future__ import division
 
-__VERSION__ = '1.6.5'
+__VERSION__ = '1.6.6'
 
 try:
   # python2
