@@ -1,5 +1,5 @@
 
-VER=1.6.5
+VER=1.6.6
 D=dist/pdfcompare-$(VER)
 EXCL=--exclude \*.orig --exclude \*~
 
