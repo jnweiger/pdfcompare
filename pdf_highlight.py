@@ -1020,9 +1020,12 @@ def main():
     pages_written += 1
   print("saving %s" % args.output)
   # add outline  
-  parent = output.addBookmark('Hits', 0) # add parent bookmark
-  for bm in outline:
+  try:
+    parent = output.addBookmark('Hits', 0) # add parent bookmark
+    for bm in outline:
        output.addBookmark(bm,outline.index(bm),parent=parent)
+  except Exception as e:
+    print("Warning: cannot add Bookmarks (pyPdf too old?): %s" % str(e))
   
   if args.no_output is False:
     outputStream = file(args.output, "wb")
