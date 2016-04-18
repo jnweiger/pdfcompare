@@ -89,6 +89,7 @@
 # 2014-01-07, V1.6.5 jw - manually merged https://github.com/jnweiger/pdfcompare/pull/4
 #                         hope, I did not break too much...
 # 2014-11-07, V1.6.6 jw - hint added for hunspell use: add word.
+# 2015-04-18, V1.6.7 jw - fall back to pyPdf from PyPDF2, for Ubuntu 14.04 LTS
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -116,7 +117,7 @@ from __future__ import with_statement
 from __future__ import print_function
 # from __future__ import division
 
-__VERSION__ = '1.6.6'
+__VERSION__ = '1.6.7'
 
 try:
   # python2
@@ -124,7 +125,12 @@ try:
 except ImportError:
   # python3, breaks python2-reportlab
   from io import StringIO
-from PyPDF2 import PdfFileWriter, PdfFileReader, generic as Pdf
+try:
+  # Ubuntu 15.x
+  from PyPDF2 import PdfFileWriter, PdfFileReader, generic as Pdf
+except ImportError:
+  # Ubuntu 14.04 LTS
+  from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import Color
 import urllib   # used when normal encode fails.
