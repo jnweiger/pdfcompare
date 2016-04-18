@@ -2,6 +2,8 @@ TODO
 
 * Test with pyPDF2
 
+* Test popups with Microsoft Edge Browser
+
 * issues:
   - test on fossy: import argparse complains about already imported.
   - Reproduce Tanja's crashes.
