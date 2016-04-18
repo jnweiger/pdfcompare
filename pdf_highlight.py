@@ -933,7 +933,7 @@ def main():
       print("DocumentInfo():")
       pprint(di)
     output._objects.append(di)
-  except Exception,e:
+  except Exception as e:
     print("WARNING: getDocumentInfo() failed: " + str(e) )
 
   output._info = Pdf.IndirectObject(len(output._objects), 0, output)
