@@ -1,0 +1,189 @@
+'\" t
+.\"     Title: pdfcompare
+.\"    Author: Jürgen Weigert
+.\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
+.\"      Date: 04/18/2016
+.\"    Manual: @VERSION@
+.\"    Source: https://github.com/jnweiger/pdfcompare @VERSION@
+.\"  Language: English
+.\"
+.TH "PDFCOMPARE" "1" "04/18/2016" "https://github\&.com/jnweiger/" "@VERSION@"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "NAME"
+pdfcompare \- Highlight words in a PDF file
+.SH "SYNOPSIS"
+.HP \w'\fBpdfcompare\fR\ 'u
+\fBpdfcompare\fR [\-h] [\-c\ \fIOLDFILE\fR] [\-d\ \fIDECRYPT_KEY\fR] [\-e] [\-i] [\-l\ \fILOGFILE\fR] [\-m\ \fIOPS\fR] [\-n] [\-o\ \fIOUTFILE\fR] [\-s\ \fIWORD_REGEXP\fR] [\-\-spell] [\-\-strict] [\-t\ \fITRANSP\fR] [\-B] [\-C\ NAME=\fIR\fR,\fIG\fR,\fIB\fR] [\-D] [\-F\ \fIFIRST_PAGE\fR] [\-L\ \fILAST_PAGE\fR] [\-M\ N,E,W,S] [\-V] [\-X]
+.br
+{INFILE} [INFILE2]
+.SH "POSITIONAL ARGUMENTS"
+.PP
+\fBINFILE\fR
+.RS 4
+the required PDF input file
+.RE
+.PP
+\fBINFILE2\fR
+.RS 4
+an optional
+\(lqnewer\(rq
+PDF input file; alternate syntax to
+\fB\-c\fR
+.RE
+.SH "OPTIONAL ARGUMENTS"
+.PP
+\fB\-B\fR, \fB\-\-below\fR
+.RS 4
+Paint the highlight markers below the text\&. Try this if the normal merge crashes\&. Use with care, highlights may disappear below background graphics\&. Default: BELOW=\*(AqFALSE\*(Aq
+.RE
+.PP
+\fB\-c \fR\fB\fIOLDFILE\fR\fR, \fB\-\-compare\-text \fR\fB\fIOLDFILE\fR\fR
+.RS 4
+Mark added, deleted and replaced text (or see
+\fB\-m\fR) with regard to
+\fIOLDFILE\fR\&. File formats
+\&.pdf,
+\&.xml,
+\&.txt
+are recognized by their suffix\&. The comparison works word by word\&.
+.RE
+.PP
+\fB\-C NAME=\fR\fB\fIR\fR\fR\fB,\fR\fB\fIG\fR\fR\fB,\fR\fB\fIB\fR\fR, \fB\-\-search\-color NAME=\fR\fB\fIR\fR\fR\fB,\fR\fB\fIG\fR\fR\fB,\fR\fB\fIB\fR\fR
+.RS 4
+Set colors of the search highlights as an RGB triplet; R,G,B ranges are 0\&.0\-1\&.0 each; valid names are \*(Aqadd,\*(Aqdelete\*(Aq,\*(Aqchange\*(Aq,\*(Aqequal\*(Aq,\*(Aqmargin\*(Aq,\*(Aqall\*(Aq; default name is \*(Aqequal\*(Aq, which is also used for
+\fB\-s\fR; default colors are A=0\&.3,1,0\&.3 /*green*/ C=0\&.9,0\&.8,0 /*yellow*/ B=0\&.9,0\&.9,0\&.9 /*gray*/ E=1,0,1 /*pink*/ D=1,0\&.3,0\&.3 /*red*/ M=0\&.7,1,1 /*blue*/
+.RE
+.PP
+\fB\-D\fR, \fB\-\-debug\fR
+.RS 4
+Enable debugging\&. Prints more on stdout, dumps several
+*\&.xml
+and
+*\&.pdf
+files\&.
+.RE
+.PP
+\fB\-e\fR, \fB\-\-exclude\-irrelevant\-pages\fR
+.RS 4
+With
+\fB\-s\fR; show only matching pages\&. With
+\fB\-c\fR: show only changed pages; default: reproduce all pages from
+\fIINFILE\fR
+in
+\fIOUTFILE\fR
+.RE
+.PP
+\fB\-f \fR\fB\fIFEATURES\fR\fR, \fB\-\-features \fR\fB\fIFEATURES\fR\fR
+.RS 4
+Specify how to mark\&. Allowed values are \*(Aqhighlight\*(Aq, \*(Aqchangebar\*(Aq, \*(Aqpopup\*(Aq, \*(Aqnavigation\*(Aq, \*(Aqwatermark\*(Aq, \*(Aqmargin\*(Aq\&. Default: H,C,P,N,W,B
+.RE
+.PP
+\fB\-F \fR\fB\fIFIRST_PAGE\fR\fR, \fB\-\-first\-page \fR\fB\fIFIRST_PAGE\fR\fR
+.RS 4
+Skip some pages at start of document; see also
+\fB\-L\fR; default: all pages
+.RE
+.PP
+\fB\-h\fR, \fB\-\-help\fR
+.RS 4
+Show this help message and exit
+.RE
+.PP
+\fB\-i\fR, \fB\-\-nocase\fR
+.RS 4
+Make
+\fB\-s\fR
+case insensitive; default: case sensitive
+.RE
+.PP
+\fB\-L \fR\fB\fILAST_PAGE\fR\fR, \fB\-\-last\-page \fR\fB\fILAST_PAGE\fR\fR
+.RS 4
+Limit pages processed; this counts pages, it does not use document page numbers; see also
+\fB\-F\fR; default: all pages
+.RE
+.PP
+\fB\-l \fR\fB\fILOGFILE\fR\fR, \fB\-\-log \fR\fB\fILOGFILE\fR\fR
+.RS 4
+Write an python datastructure describing all the overlay objects on each page\&. Default none\&.
+.RE
+.PP
+\fB\-M N,E,W,S\fR, \fB\-\-margins N,E,W,S\fR
+.RS 4
+Specify margin space to ignore on each page\&. A margin width is expressed in units of ca\&. 100dpi\&. Specify four numbers in the order north,east,west,south\&. Default: 0,0,0,0
+.RE
+.PP
+\fB\-m \fR\fB\fIOPS\fR\fR, \fB\-\-mark \fR\fB\fIOPS\fR\fR
+.RS 4
+Specify what to mark\&. Used with
+\fB\-c\fR\&. Allowed values are \*(Aqadd\*(Aq,\*(Aqdelete\*(Aq,\*(Aqchange\*(Aq,\*(Aqequal\*(Aq\&. Multiple values can be listed comma\-seperated; abbreviations are allowed\&. Default: A,D,C
+.RE
+.PP
+\fB\-n\fR, \fB\-\-no\-output\fR
+.RS 4
+Do not write an output file; print diagnostics only; default: write output file as per
+\fB\-o\fR
+.RE
+.PP
+\fB\-o \fR\fB\fIOUTFILE\fR\fR, \fB\-\-output \fR\fB\fIOUTFILE\fR\fR
+.RS 4
+Write output to FILE; default:
+output\&.pdf
+.RE
+.PP
+\fB\-\-spell\fR, \fB\-\-spell\-check\fR
+.RS 4
+Run the text body of the (new) PDF through
+\fBhunspell\fR\&. Unknown words are underlined\&. Use e\&.g\&. \*(Aqenv DICTIONARY=en_US \&.\&.\&.\*(Aq (or de_DE, \&.\&.\&.) to specify the spelling dictionary, if your system has more than one\&. To add new words to your private dictionary use e\&.g\&. \*(Aqecho "ownCloud" >> ~/\&.hunspell_en_US\*(Aq Check with
+\fBhunspell \fR\fB\fB\-D\fR\fR
+and study
+\fBhunspell\fR(1)\&.
+.RE
+.PP
+\fB\-\-strict\fR
+.RS 4
+Show really all differences; default: ignore removed hyphenation; ignore character spacing inside a word
+.RE
+.PP
+\fB\-t \fR\fB\fITRANSP\fR\fR, \fB\-\-transparency \fR\fB\fITRANSP\fR\fR
+.RS 4
+Set transparency of the highlight; invisible: 0\&.0; full opaque: 1\&.0; default: 0\&.6
+.RE
+.PP
+\fB\-V\fR, \fB\-\-version\fR
+.RS 4
+Print the version number and exit
+.RE
+.PP
+\fB\-X\fR, \fB\-\-no\-compression\fR
+.RS 4
+Write uncompressed PDF\&. Default: FlateEncode filter compression\&.
+.RE
+.SH "AUTHORS"
+.PP
+\fBJürgen Weigert\fR
+.RS 4
+Developer
+.RE
+.PP
+\fBThomas Schraitle\fR <\&toms@opensuse\&.org\&>
+.RS 4
+Manpage author
+.RE
