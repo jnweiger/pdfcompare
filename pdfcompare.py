@@ -1,9 +1,9 @@
 #! /usr/bin/python
 # -*- coding: UTF-8 -*-
 #
-# pdf_highlight.py -- command line tool to show search or compare results in a PDF
+# pdfcompare.py -- command line tool to show search or compare results in a PDF
 #
-# (c) 2012-2013 Juergen Weigert jw@suse.de
+# (c) 2012-2016 Juergen Weigert juewei@fabfolk.com
 # Distribute under GPL-2.0 or ask
 #
 # 2012-03-16, V0.1 jw - initial draught: argparse, pdftohtml-xml, font.metrics
@@ -90,8 +90,8 @@
 #                         hope, I did not break too much...
 # 2014-11-07, V1.6.6 jw - hint added for hunspell use: add word.
 # 2015-04-18, V1.6.7 jw - fall back to pyPdf from PyPDF2, for Ubuntu 14.04 LTS
-#
-# TODO: popup pN[tcb]: source location descriptors optional. No normal user expects or understands them.
+# 2015-04-19, V1.6.8 jw - popup pN[tcb]: source location descriptors optional.
+#                         No normal user expects or understands them.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -119,7 +119,7 @@ from __future__ import with_statement
 from __future__ import print_function
 from __future__ import division
 
-__VERSION__ = '1.6.7'
+__VERSION__ = '1.6.8'
 
 try:
   # python2
@@ -159,6 +159,7 @@ page_ref_plain = "to page "     # this will be visible as a popup on navigation 
 
 highlight_height = 1.2  # some fonts cause too much overlap with 1.4
                         # 1.2 is often not enough to look symmetric.
+anno_popup_src_loc_ref = False	# False: 'chg: bla'    True: 'chg:p1t: bla'
 
 # from pdfminer.fontmetrics import FONT_METRICS
 # FONT_METRICS['Helvetica'][1]['W']
@@ -292,7 +293,10 @@ def page_changemarks(canvas, mediabox, cropbox, marks, page_idx, trans=0.5, left
     text = mark.get('t', '.') + ':'
     if 'o' in mark:
       if isinstance(mark['o'], list):
-        text += mark['o'][1]+': '+ mark['o'][0]
+        if anno_popup_src_loc_ref:
+          text += mark['o'][1]+': '+ mark['o'][0]
+	else:
+          text += ' '+mark['o'][0]
       else:
         text += ' '+mark['o']
     # need ascii here. anything else triggers
@@ -377,10 +381,10 @@ def page_watermark(canv, box, argv, color=[1,0,1], trans=0.5, p_w=None, p_h=None
     # w,h = canv._pagesize
     # w=float(w)
     # h=float(h)
-    m_n=margins['n']*box[3]/p_h
-    m_e=margins['e']*box[2]/p_w
-    m_w=margins['w']*box[2]/p_w
-    m_s=margins['s']*box[3]/p_h
+    m_n=margins['n']*float(box[3])/p_h
+    m_e=margins['e']*float(box[2])/p_w
+    m_w=margins['w']*float(box[2])/p_w
+    m_s=margins['s']*float(box[3])/p_h
     # m_n=margins['n']*p_h
     # m_e=margins['e']*p_w
     # m_w=margins['w']*p_w
@@ -786,6 +790,8 @@ def main():
                       help="specify margin space to ignore on each page. A margin width is expressed \
                       in units of ca. 100dpi. Specify four numbers in the order north,east,west,south. Default: "\
                       + str(parser.def_margins))
+  parser.add_argument("-S", "--source-location", default=False, action="store_true",
+                      help="Annotation start includes :pNx: markers where 'N' is the page number of the location in the original document and X is 't' for top, 'c' for center, or 'b' for bottom of the page. Default: Annotations start only with 'chg:', 'add:', 'del:' optionally followed by original text")
   parser.add_argument("-V", "--version", default=False, action="store_true",
                       help="print the version number and exit")
   parser.add_argument("-X", "--no-compression", default=False, action="store_true",
@@ -799,8 +805,12 @@ def main():
   args.transparency = 1 - args.transparency     # it is needed reversed.
 
   if args.version: parser.exit(__VERSION__)
+
   global debug 
   debug = args.debug
+
+  global anno_popup_src_loc_ref
+  anno_popup_src_loc_ref = args.source_location
 
   args.search_colors = parser.def_colors.copy()
   if args.search_color:
