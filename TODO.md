@@ -1,12 +1,15 @@
 TODO
 
-* Test with pyPDF2
-
-* Test with python3
+* Option to dump the annotations as markdown definition list.
+  This is useful with PDF viewers that cannot show the annotations as popups.
 
 * Is a Windows installer possible?
 
 * Test popups with Microsoft Edge Browser
+
+* Test with pyPDF2
+
+* Test with python3
 
 * hunspell issues:
   - python-HunspellPure should be a separate module. Split it.
