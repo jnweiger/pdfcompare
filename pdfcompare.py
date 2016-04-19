@@ -92,6 +92,8 @@
 # 2015-04-18, V1.6.7 jw - fall back to pyPdf from PyPDF2, for Ubuntu 14.04 LTS
 # 2015-04-19, V1.6.8 jw - popup pN[tcb]: source location descriptors optional.
 #                         No normal user expects or understands them.
+#                         No navigation marks per default. They are often broken, and often
+#                         useless due to page number changes. Include in -f to enable.
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -737,7 +739,7 @@ def main():
                         'B': [.9,.9,.9, 'gray'] }       # borders
   parser.def_output = 'output.pdf'
   parser.def_marks = 'A,D,C'
-  parser.def_features = 'H,C,P,N,W,B'
+  parser.def_features = 'H,C,P,W,B'
   parser.def_margins = '0,0,0,0'
   parser.def_margins = '0,0,0,0'
   parser.def_below = False
