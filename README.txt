@@ -36,6 +36,6 @@ Yellow marks show changed text. The annotation popup contains the word 'chg:' an
     pdfcompare gpl-3.0-tplink.pdf agpl-3.0.pdf -o gpl-agpl-diff.pdf
     xdg-open gpl-agpl-diff.pdf
 
-Pdfcompare also features text search and spellchecking (via hunspell) and text-search. Search hits are marked in pink. Spellcheck errors are underlined in pink. If you get excessive spellcheck errors, try switching the language with env DICTIONARY=de_DE or study the hunspell documentation.
+Pdfcompare also features text search and spellchecking (via hunspell). Search hits are marked in pink. Spellcheck errors are underlined in pink. If you get excessive spellcheck errors, try switching the language with env DICTIONARY=de_DE or study the hunspell documentation.
 
 The option --margin 0,0,0,240 can be used with the two documents used here to ignore the page numbers introduced in agpl-3.0.pdf -- With this option, a gray bar will cover the page number and it is not marked as a change. 
