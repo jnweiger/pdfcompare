@@ -18,7 +18,7 @@ clean:
 tar dist:
 	rm -rf dist
 	mkdir -p $D
-	ln -s ../../pdf_highlight.py $D/pdfcompare.py
+	ln -s ../../pdfcompare.py $D/pdfcompare.py
 	ln -s ../../COPYING $D/
 	ln -s ../../test $D/test
 	cd dist; tar jhcvf ../pdfcompare-$(VER).tar.bz2 pdfcompare-$(VER) $(EXCL)

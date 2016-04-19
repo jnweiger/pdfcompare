@@ -91,6 +91,8 @@
 # 2014-11-07, V1.6.6 jw - hint added for hunspell use: add word.
 # 2015-04-18, V1.6.7 jw - fall back to pyPdf from PyPDF2, for Ubuntu 14.04 LTS
 #
+# TODO: popup pN[tcb]: source location descriptors optional. No normal user expects or understands them.
+#
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
 # osc in devel:languages:python python-reportlab
@@ -115,7 +117,7 @@
 # Compatibility for older Python versions
 from __future__ import with_statement
 from __future__ import print_function
-# from __future__ import division
+from __future__ import division
 
 __VERSION__ = '1.6.7'
 
@@ -375,10 +377,10 @@ def page_watermark(canv, box, argv, color=[1,0,1], trans=0.5, p_w=None, p_h=None
     # w,h = canv._pagesize
     # w=float(w)
     # h=float(h)
-    m_n=margins['n']*float(box[3])/p_h
-    m_e=margins['e']*float(box[2])/p_w
-    m_w=margins['w']*float(box[2])/p_w
-    m_s=margins['s']*float(box[3])/p_h
+    m_n=margins['n']*box[3]/p_h
+    m_e=margins['e']*box[2]/p_w
+    m_w=margins['w']*box[2]/p_w
+    m_s=margins['s']*box[3]/p_h
     # m_n=margins['n']*p_h
     # m_e=margins['e']*p_w
     # m_w=margins['w']*p_w
@@ -592,7 +594,7 @@ def in_bbox_interpolated(bbox, word):
 
   i = word[2]
   l = len(word[0])
-  char_width = float(x2-x1)/len(word[1])
+  char_width = (x2-x1)/len(word[1])
   x1 += i * char_width
   x2 = x1 + l * char_width
   # Given the fast track above, maybe for the rest, a
@@ -1084,7 +1086,7 @@ def rendered_text_pos(string1, char_start, char_count, font=None, xoff=0, width=
   if (width is not None): 
     tot_w = pre_w+str_w+suf_w
     if (tot_w == 0): tot_w = 1
-    ratio = float(width)/tot_w
+    ratio = width/tot_w
   #pprint([[pre,str,suf,width],[pre_w,str_w,suf_w,tot_w],ratio])
   return (xoff+pre_w*ratio, str_w*ratio)
 
@@ -1175,9 +1177,9 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
   def catwords(dw, idx1, idx2, maxwords=666):
     # make maxwords low enough, so that the popup fits on the screen.
     if (maxwords is not None and idx2-idx1 > maxwords):
-      cw1_text, cw1_loc = catwords(dw, idx1, idx1+maxwords/3, None)
-      cw2_text, cw2_loc = catwords(dw, idx2-maxwords/3, idx2, None)
-      text = cw1_text + ("<br><br> --]-------- snip %d words --------[-- <br><br>" % (idx2-idx1-maxwords*2/3)) + cw2_text
+      cw1_text, cw1_loc = catwords(dw, idx1, idx1+int(maxwords/3), None)
+      cw2_text, cw2_loc = catwords(dw, idx2-int(maxwords/3), idx2, None)
+      text = cw1_text + ("<br><br> --]-------- snip %d words --------[-- <br><br>" % (idx2-idx1-int(maxwords*2/3))) + cw2_text
       return [ text, cw1_loc ]
 
     text = ""

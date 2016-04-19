@@ -2,11 +2,11 @@ TODO
 
 * Test with pyPDF2
 
-* Test popups with Microsoft Edge Browser
+* Test with python3
 
-* issues:
-  - test on fossy: import argparse complains about already imported.
-  - Reproduce Tanja's crashes.
+* Is a Windows installer possible?
+
+* Test popups with Microsoft Edge Browser
 
 * hunspell issues:
   - python-HunspellPure should be a separate module. Split it.
