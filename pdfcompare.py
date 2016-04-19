@@ -726,7 +726,7 @@ def xml2fontinfo(dom, last_page=None):
   return finfo
 
 def main():
-  parser = ArgumentParser(epilog="version: "+__VERSION__, description="highlight words in a PDF file.")
+  parser = ArgumentParser(epilog="version: "+__VERSION__, description="Highlight changed/added/deleted/moved text in a PDF file.")
   parser.def_trans = 0.6
   parser.def_decrypt_key = ''
   parser.def_colors = { 'E': [1,0,1,    'pink'],        # extra
@@ -742,64 +742,70 @@ def main():
   parser.def_margins = '0,0,0,0'
   parser.def_below = False
   parser.add_argument("-c", "--compare-text", metavar="OLDFILE",
-                      help="mark added, deleted and replaced text (or see -m) with regard to OLDFILE. \
+                      help="Mark added, deleted and replaced text (or see -m) with regard to OLDFILE. \
                             File formats .pdf, .xml, .txt are recognized by their suffix. \
                             The comparison works word by word.")
   parser.add_argument("-d", "--decrypt-key", metavar="DECRYPT_KEY", default=parser.def_decrypt_key,
-                      help="open an encrypted PDF; default: KEY='"+parser.def_decrypt_key+"'")
+                      help="Open an encrypted PDF. Default: KEY='"+parser.def_decrypt_key+"'")
   parser.add_argument("-e", "--exclude-irrelevant-pages", default=False, action="store_true",
-                      help="with -s: show only matching pages; with -c: show only changed pages; \
-                      default: reproduce all pages from INFILE in OUTFILE")
+                      help="With -s: show only matching pages; with -c: show only changed pages. \
+                      Default: reproduce all pages from INFILE in OUTFILE.")
   parser.add_argument("-f", "--features", metavar="FEATURES", default=parser.def_features,
-                      help="specify how to mark. Allowed values are 'highlight', 'changebar', 'popup', \
+                      help="Specify how to mark. Allowed values are 'highlight', 'changebar', 'popup', \
                       'navigation', 'watermark', 'margin'. Default: " + str(parser.def_features))
   parser.add_argument("-i", "--nocase", default=False, action="store_true",
-                      help="make -s case insensitive; default: case sensitive")
+                      help="Make -s case insensitive; default: case sensitive.")
   parser.add_argument("-l", "--log",  metavar="LOGFILE", 
-                      help="write an python datastructure describing all the overlay objects on each page. Default none.")
+                      help="Write an python datastructure describing all the overlay objects on each page. Default none.")
   parser.add_argument("-m", "--mark", metavar="OPS", default=parser.def_marks,
-                      help="specify what to mark. Used with -c. Allowed values are 'add','delete','change','equal'. \
+                      help="Specify what to mark. Used with -c. Allowed values are 'add','delete','change','equal'. \
                             Multiple values can be listed comma-seperated; abbreviations are allowed.\
                             Default: " + str(parser.def_marks))
   parser.add_argument("-n", "--no-output", default=False, action="store_true",
-                      help="do not write an output file; print diagnostics only; default: write output file as per -o")
+                      help="Do not write an output file; print diagnostics only. Default: write output file as per -o option.")
   parser.add_argument("-o", "--output", metavar="OUTFILE", default=parser.def_output,
-                      help="write output to FILE; default: "+parser.def_output)
+                      help="Write output to FILE; default: "+parser.def_output)
   parser.add_argument("-s", "--search", metavar="WORD_REGEXP", 
-                      help="highlight WORD_REGEXP")
+                      help="Highlight WORD_REGEXP")
   parser.add_argument("--spell", "--spell-check", default=False, action="store_true",
-                      help="run the text body of the (new) pdf through hunspell. Unknown words are underlined. Use e.g. 'env DICTIONARY=en_US ...' (or de_DE, ...) to specify the spelling dictionary, if your system has more than one. To add new words to your private dictionary use e.g. 'echo >> ~/.hunspell_en_US ownCloud'. Check with 'hunspell -D' and study 'man hunspell'.")
+                      help="Run the text body of the (new) pdf through hunspell. Unknown words are underlined. \
+		          Use e.g. 'env DICTIONARY=en_US ...' (or de_DE, ...) to specify the spelling dictionary, \
+			  if your system has more than one. To add new words to your private dictionary use e.g. \
+			  'echo >> ~/.hunspell_en_US ownCloud'. Check with 'hunspell -D' and study 'man hunspell'.")
   parser.add_argument("--strict", default=False, action="store_true",
-                      help="show really all differences; default: ignore removed hyphenation; ignore character spacing inside a word")
+                      help="Show really all differences. Default: ignore removed hyphenation; \
+		          ignore character spacing inside a word.")
   parser.add_argument("-t", "--transparency", type=float, default=parser.def_trans, metavar="TRANSP", 
-                      help="set transparency of the highlight; invisible: 0.0; full opaque: 1.0; \
+                      help="Set transparency of the highlight; invisible: 0.0; full opaque: 1.0; \
                       default: " + str(parser.def_trans))
   parser.add_argument("-B", "--below", default=parser.def_below, action="store_true",
-                      help="Paint the highlight markers below the text. Try this if the normal merge crashes. Use with care, highlights may disappear below background graphics. Default: BELOW='"+str(parser.def_below)+"'")
+                      help="Paint the highlight markers below the text. Try this if the normal merge crashes. Use with care, highlights may disappear below background graphics. Default: BELOW='"+str(parser.def_below)+"'.")
   parser.add_argument("-C", "--search-color", metavar="NAME=R,G,B", action="append",
-                      help="set colors of the search highlights as an RGB triplet; R,G,B ranges are 0.0-1.0 each; valid names are 'add,'delete','change','equal','margin','all'; default name is 'equal', which is also used for -s; default colors are " + 
+                      help="Set colors of the search highlights as an RGB triplet; R,G,B ranges are 0.0-1.0 each; valid names are 'add,'delete','change','equal','margin','all'; default name is 'equal', which is also used for -s; default colors are " + 
                       " ".join(["%s=%s,%s,%s /*%s*/ " %(x_y[0],x_y[1][0],x_y[1][1],x_y[1][2],x_y[1][3]) for x_y in list(parser.def_colors.items())]))
   parser.add_argument("-D", "--debug", default=False, action="store_true",
-                      help="enable debugging. Prints more on stdout, dumps several *.xml or *.pdf files.")
+                      help="Enable debugging. Prints more on stdout, dumps several *.xml or *.pdf files.")
   parser.add_argument("-F", "--first-page", metavar="FIRST_PAGE",
-                      help="skip some pages at start of document; see also -L; default: all pages")
+                      help="Skip some pages at start of document; see also -L option. Default: all pages.")
   parser.add_argument("-L", "--last-page", metavar="LAST_PAGE",
-                      help="limit pages processed; this counts pages, it does not use document \
-                      page numbers; see also -F; default: all pages")
+                      help="Limit pages processed; this counts pages, it does not use document \
+                      page numbers; see also -F; default: all pages.")
   parser.add_argument("-M", "--margins", metavar="N,E,W,S", default=parser.def_margins,
-                      help="specify margin space to ignore on each page. A margin width is expressed \
+                      help="Specify margin space to ignore on each page. A margin width is expressed \
                       in units of ca. 100dpi. Specify four numbers in the order north,east,west,south. Default: "\
                       + str(parser.def_margins))
   parser.add_argument("-S", "--source-location", default=False, action="store_true",
-                      help="Annotation start includes :pNX: markers where 'N' is the page number of the location in the original document and X is 't' for top, 'c' for center, or 'b' for bottom of the page. Default: Annotations start only with 'chg:', 'add:', 'del:' optionally followed by original text")
+                      help="Annotation start includes :pNX: markers where 'N' is the page number of the location \
+		          in the original document and X is 't' for top, 'c' for center, or 'b' for bottom of the page. \
+			  Default: Annotations start only with 'chg:', 'add:', 'del:' optionally followed by original text.")
   parser.add_argument("-V", "--version", default=False, action="store_true",
-                      help="print the version number and exit")
+                      help="Print the version number and exit.")
   parser.add_argument("-X", "--no-compression", default=False, action="store_true",
-                      help="write uncompressed PDF. Default: FlateEncode filter compression.")
+                      help="Write uncompressed PDF. Default: FlateEncode filter compression.")
   parser.add_argument("--leftside", default=False, action="store_true",
-                      help="put changebars and navigation at the left hand side of the page. Default: right hand side.")
-  parser.add_argument("infile", metavar="INFILE", help="the input file")
-  parser.add_argument("infile2", metavar="INFILE2", nargs="?", help="optional 'newer' input file; alternate syntax to -c")
+                      help="Put changebars and navigation at the left hand side of the page. Default: right hand side.")
+  parser.add_argument("infile", metavar="INFILE", help="The input file.")
+  parser.add_argument("infile2", metavar="INFILE2", nargs="?", help="Optional 'newer' input file; alternate syntax to -c")
   args = parser.parse_args()      # --help is automatic
 
   args.transparency = 1 - args.transparency     # it is needed reversed.
@@ -840,7 +846,7 @@ def main():
     args.compare_text,args.infile = args.infile,args.infile2
 
   if args.search is None and args.compare_text is None and args.spell is None:
-    parser.exit("Oops. Nothing to do. Specify either -s or --spell or -c or two input files")
+    parser.exit("Oops. Nothing to do. Specify either -s or --spell or -c or two input files.")
 
   if not os.access(args.infile, os.R_OK):
     parser.exit("Cannot read input file: %s" % args.infile)
