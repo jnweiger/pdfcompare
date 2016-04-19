@@ -791,7 +791,7 @@ def main():
                       in units of ca. 100dpi. Specify four numbers in the order north,east,west,south. Default: "\
                       + str(parser.def_margins))
   parser.add_argument("-S", "--source-location", default=False, action="store_true",
-                      help="Annotation start includes :pNx: markers where 'N' is the page number of the location in the original document and X is 't' for top, 'c' for center, or 'b' for bottom of the page. Default: Annotations start only with 'chg:', 'add:', 'del:' optionally followed by original text")
+                      help="Annotation start includes :pNX: markers where 'N' is the page number of the location in the original document and X is 't' for top, 'c' for center, or 'b' for bottom of the page. Default: Annotations start only with 'chg:', 'add:', 'del:' optionally followed by original text")
   parser.add_argument("-V", "--version", default=False, action="store_true",
                       help="print the version number and exit")
   parser.add_argument("-X", "--no-compression", default=False, action="store_true",
