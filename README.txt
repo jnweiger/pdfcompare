@@ -12,6 +12,16 @@ Required Packages:
 * reportlab.lib.colors
 * pygame.font'
 
+Packages
+========
+DEB and RPM packages are built in
+ https://build.opensuse.org/package/show/Documentation:Tools/pdfcompare
+Downloads directly from the openSUSE Build Service are available in
+ http://software.opensuse.org/download.html?project=Documentation%3ATools&package=pdfcompare
+Stable releases are done via github
+ https://github.com/jnweiger/pdfcompare/releases
+
+
 Example Usage and tips
 ======================
 
