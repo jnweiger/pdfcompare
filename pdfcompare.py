@@ -161,7 +161,7 @@ page_ref_plain = "to page "     # this will be visible as a popup on navigation 
 
 highlight_height = 1.2  # some fonts cause too much overlap with 1.4
                         # 1.2 is often not enough to look symmetric.
-anno_popup_src_loc_ref = False	# False: 'chg: bla'    True: 'chg:p1t: bla'
+anno_popup_src_loc_ref = False    # False: 'chg: bla'    True: 'chg:p1t: bla'
 
 # from pdfminer.fontmetrics import FONT_METRICS
 # FONT_METRICS['Helvetica'][1]['W']
@@ -297,7 +297,7 @@ def page_changemarks(canvas, mediabox, cropbox, marks, page_idx, trans=0.5, left
       if isinstance(mark['o'], list):
         if anno_popup_src_loc_ref:
           text += mark['o'][1]+': '+ mark['o'][0]
-	else:
+        else:
           text += ' '+mark['o'][0]
       else:
         text += ' '+mark['o']
@@ -771,12 +771,12 @@ def main():
                       help="Highlight WORD_REGEXP")
   parser.add_argument("--spell", "--spell-check", default=False, action="store_true",
                       help="Run the text body of the (new) pdf through hunspell. Unknown words are underlined. \
-		          Use e.g. 'env DICTIONARY=en_US ...' (or de_DE, ...) to specify the spelling dictionary, \
-			  if your system has more than one. To add new words to your private dictionary use e.g. \
-			  'echo >> ~/.hunspell_en_US ownCloud'. Check with 'hunspell -D' and study 'man hunspell'.")
+                            Use e.g. 'env DICTIONARY=en_US ...' (or de_DE, ...) to specify the spelling dictionary, \
+                            if your system has more than one. To add new words to your private dictionary use e.g. \
+                            'echo >> ~/.hunspell_en_US ownCloud'. Check with 'hunspell -D' and study 'man hunspell'.")
   parser.add_argument("--strict", default=False, action="store_true",
                       help="Show really all differences. Default: ignore removed hyphenation; \
-		          ignore character spacing inside a word.")
+                            ignore character spacing inside a word.")
   parser.add_argument("-t", "--transparency", type=float, default=parser.def_trans, metavar="TRANSP", 
                       help="Set transparency of the highlight; invisible: 0.0; full opaque: 1.0; \
                       default: " + str(parser.def_trans))
@@ -798,8 +798,8 @@ def main():
                       + str(parser.def_margins))
   parser.add_argument("-S", "--source-location", default=False, action="store_true",
                       help="Annotation start includes :pNX: markers where 'N' is the page number of the location \
-		          in the original document and X is 't' for top, 'c' for center, or 'b' for bottom of the page. \
-			  Default: Annotations start only with 'chg:', 'add:', 'del:' optionally followed by original text.")
+                            in the original document and X is 't' for top, 'c' for center, or 'b' for bottom of the page. \
+                            Default: Annotations start only with 'chg:', 'add:', 'del:' optionally followed by original text.")
   parser.add_argument("-V", "--version", default=False, action="store_true",
                       help="Print the version number and exit.")
   parser.add_argument("-X", "--no-compression", default=False, action="store_true",
