@@ -3,7 +3,7 @@
 #
 # pdfcompare.py -- command line tool to show search or compare results in a PDF
 #
-# (c) 2012-2016 Juergen Weigert juewei@fabfolk.com
+# (c) 2012-2016 Juergen Weigert juewei@fabmail.org
 # Distribute under GPL-2.0 or ask
 #
 # 2012-03-16, V0.1 jw - initial draught: argparse, pdftohtml-xml, font.metrics
