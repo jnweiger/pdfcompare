@@ -150,7 +150,7 @@ from difflib import SequenceMatcher
 import codecs
 
 # allow debug printing into less:
-sys.stdout = codecs.getwriter('utf8')(sys.stdout)
+# sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 debug = False
 # a token we use to patch the page objects.
 page_ref_magic = "675849302 to page "
