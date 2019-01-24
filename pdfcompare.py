@@ -1,4 +1,4 @@
-#! /usr/bin/python
+#!/usr/bin/python3
 # -*- coding: UTF-8 -*-
 #
 # pdfcompare.py -- command line tool to show search or compare results in a PDF
@@ -129,12 +129,12 @@ try:
 except ImportError:
   # python3, breaks python2-reportlab
   from io import StringIO
-try:
-  # Ubuntu 15.x
-  from PyPDF2 import PdfFileWriter, PdfFileReader, generic as Pdf
-except ImportError:
-  # Ubuntu 14.04 LTS
-  from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
+#try:
+#  # Ubuntu 15.x
+from PyPDF2 import PdfFileWriter, PdfFileReader, generic as Pdf
+#except ImportError:
+#  # Ubuntu 14.04 LTS
+#  from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import Color
 import urllib   # used when normal encode fails.
@@ -814,7 +814,7 @@ def main():
 
   if args.version: parser.exit(__VERSION__)
 
-  global debug 
+  global debug
   debug = args.debug
 
   global anno_popup_src_loc_ref
@@ -1046,7 +1046,7 @@ def main():
        output.addBookmark(bm,outline.index(bm),parent=parent)
   except Exception as e:
     print("Warning: cannot add Bookmarks (pyPdf too old?): %s" % str(e))
-  
+
   if args.no_output is False:
     outputStream = file(args.output, "wb")
     try:
@@ -1110,7 +1110,7 @@ def rendered_text_pos(string1, char_start, char_count, font=None, xoff=0, width=
 
 def create_mark(text,offset,length, font, t_x, t_y, t_w, t_h, ext={}):
   #print("word: at %d is '%s'" % (offset, text[offset:offset+length]),)
-    
+
   (xoff,width) = rendered_text_pos(text, offset, length,
                           font, float(t_x), float(t_w))
   #print("  xoff=%.1f, width=%.1f" % (xoff, width))
@@ -1178,7 +1178,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
          w = wl[idx-1]
          p_nr = w[3].get('p','?')
          off = w[2]+len(w[0])
-      l = 0 
+      l = 0
 
     mark = create_mark(w[1], off, l,
           fontinfo[p_nr][w[3]['f']]['font'], 
@@ -1288,17 +1288,17 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
                 if not 'ref' in hintb: hintb['ref'] = []
                 hint['ref'].append((r, i1b, i2b))   # wordlist[..]
                 hintb['ref'].append((r, j1, j2))    # wl_new[..]
-      
+
         print(" ... sorting ...")
-      
+
         for tag, i1, i2, j1, j2, hint in all:
           if 'ref' in hint:
             hint['ref'].sort(key=lambda ref:ref[1], reverse=True)
             if debug:
               print('moved:', tag, i1, i2, j1, j2, hint)   # , catwords_raw(wl_new, j1, j2)
-      
+
         print(" ... moving ...")
-      
+
         for tag, i1, i2, j1, j2, hint in all:
           if (tag == "insert" and len(hint.get('ref',[])) > 0):
             # second level diff ahead:
@@ -1441,7 +1441,7 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
     print("checked: %d bad" % len(bad_word_dict))
     if debug > 1:
         pprint(['bad_word_dict: ', bad_word_dict])
-      
+
     idx = 0
     for word in wl_new:
       if 's' in word[3] and \
@@ -1493,12 +1493,12 @@ def pdfhtml_xml_find(dom, re_pattern=None, wordlist=None, nocase=False, ext={}, 
           # print("offset=%d, i=%d, l=%s" % (offset, i, repr(l)))
           offset += l[i]
           if (l[i+1] > 0):
-  
+
             p_rect.append(create_mark(text,offset,l[i+1], 
               p_finfo[e.attrib['font']]['font'], 
               e.attrib['left'], e.attrib['top'], 
               e.attrib['width'],e.attrib['height'], ext['e']))
-    
+
             offset += l[i+1]
           i += 2
     pages_a.append({'nr':int(p.attrib['number']), 'rect':p_rect, 
@@ -1545,7 +1545,7 @@ class Hunspell():
                 header += more  # stderr should be collected here. It does not work
         if len(header): self.header = header
         self.buffer = ''
-        
+
     def _readline(self):
         # python readline() is horribly stupid on this pipe. It reads single
         # byte, just like java did in the 1980ies. Sorry, this is not
@@ -1608,7 +1608,7 @@ class Hunspell():
             words = d.split('/')
             r[words[-1]] = d
         return r
- 
+
     def dict_search_path(self):
         """returns a list of pathnames, actually used by hunspell to load 
            spelling dictionaries from.
@@ -1618,14 +1618,14 @@ class Hunspell():
         for d in self.attr['SEARCH PATH']:
             r += d.split(':')
         return r
- 
+
     def dicts_loaded(self):
         """query the spelling dictionaries that will actually be used for 
            the next check_words() call.
         """
         if self.attr is None: self._load_attr()
         return self.attr['LOADED DICTIONARY']
- 
+
     def check_words(self, words):
         """takes a list of words as parameter, and checks them against the 
            loaded spelling dictionaries. A key value dict is returned, where
@@ -1643,14 +1643,14 @@ class Hunspell():
             os._exit(0)
         self.proc.stdin.close()
         bad_words = {}
- 
+
         while True:
             line = self._readline()
             if len(line) == 0:
                 break
             line = line.rstrip()
             if not len(line) or line[0] in '*+-': continue
- 
+
             if line[0] == '#': 
                 car = line.split(' ')
                 bad_words[car[1]] = []          # no suggestions
@@ -1668,5 +1668,6 @@ class Hunspell():
         self.proc = None
         return bad_words
 
-if __name__ == "__main__": main()
+if __name__ == "__main__":
+    main()
 
