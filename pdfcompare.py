@@ -502,21 +502,28 @@ def do_pdf2xml(parser, infile, key='', firstpage=None, lastpage=None, relaxed=Fa
         pdftohtml_cmd += ["-l", lastpage]
     if len(key):
         pdftohtml_cmd += ["-upw", key]
+    pdftohtml_cmd.append(infile)
     try:
-        (to_child, from_child) = os.popen2(pdftohtml_cmd + [infile])
+        p = subprocess.Popen(pdftohtml_cmd,
+                             shell=True,
+                             stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE,
+                             # close_fds=True
+                             )
+        child_stdin, child_stdout = p.stdin, p.stdout
     except Exception as e:
-        print(" ".join(pdftohtml_cmd + [infile]))
+        print(" ".join(pdftohtml_cmd))
         parser.exit("pdftohtml -xml failed: " +
-                    " ".join(pdftohtml_cmd + [infile]) + ": " + str(e))
+                    " ".join(pdftohtml_cmd) + ": " + str(e))
 
     try:
         if relaxed:
-            data = from_child.read()
+            data = child_stdin.read()
             # <a...> </a> appear to be misplaced.
             data = re.sub("(<a.*?>|</a>)", "", data)
             dom = ET.parse(StringIO(data))
         else:
-            dom = ET.parse(from_child)
+            dom = ET.parse(child_stdin)
     except Exception as e:
         print(" ".join(pdftohtml_cmd + [infile]))
         if relaxed:
@@ -823,7 +830,6 @@ def main():
                   'M': [.7, 1, 1,   'blue'],        # moved
                   'B': [.9, .9, .9, 'gray']}        # borders
 
-
     parser.add_argument("-c", "--compare-text",
                         metavar="OLDFILE",
                         help=("Mark added, deleted and replaced text (or see -m) "
@@ -925,12 +931,12 @@ def main():
     parser.add_argument("-C", "--search-color",
                         metavar="NAME=R,G,B",
                         action="append",
-                        default=" ".join(["%s=%s,%s,%s /*%s*/ " % (x_y[0],
-                                                                   x_y[1][0],
-                                                                   x_y[1][1],
-                                                                   x_y[1][2],
-                                                                   x_y[1][3])
-                                for x_y in list(def_colors.items())]),
+                        #default=" ".join(["%s=%s,%s,%s /*%s*/ " % (x_y[0],
+                        #                                           x_y[1][0],
+                        #                                           x_y[1][1],
+                        #                                           x_y[1][2],
+                        #                                           x_y[1][3])
+                        #        for x_y in list(def_colors.items())]),
                         help=("Set colors of the search highlights as an RGB"
                               "triplet; R,G,B ranges are 0.0-1.0 each; "
                               "valid names are 'add,'delete','change','equal', "
@@ -1010,7 +1016,7 @@ def main():
     global anno_popup_src_loc_ref
     anno_popup_src_loc_ref = args.source_location
 
-    # args.search_colors = def_colors.copy()
+    args.search_colors = def_colors.copy()
     if args.search_color:
         for col in args.search_color:
             print("color:", col)
