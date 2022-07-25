@@ -10,12 +10,11 @@ out=$(python3 pdfcompare --help 2>&1)
 py3pdf=$(echo $out | grep 'No module named pyPdf')
 ver=$(echo $out | grep 'version: ')
 
-# at least we got this far.
-# assertTrue "testpy3 missing python3-pyPdf" '[[ -n "$py3pdf" ]]'
-echo ignored: missing python3-pyPdf
-startSkipping
-assertTrue "testpy3 --help contains version" '[[ -n "$ver" ]]'
+assertTrue "testpy3 missing python3-pyPdf" '[ -z "$py3pdf" ]'
+# startSkipping
+assertTrue "testpy3 --help contains version" '[ -n "$ver" ]'
 }
 
-. /usr/share/shunit2/src/shunit2
+# . /usr/share/shunit2/src/shunit2
+. shunit2
 

@@ -4,9 +4,9 @@ all: test
 
 test_requires:
 	@echo The selftest uses the following extra packages:
-	@rpm -q shunit2 || exit 2
-	@rpm -q python-scipy || exit 2
-	@rpm -q pdftk || exit 2
+	@sudo apt install -y shunit2 || rpm -q shunit2 || exit 2
+	@sudo apt install -y pdftk || rpm -q pdftk || exit 2
+	@sudo pip3 install scipy pypdftk-secure || exit 2
 	@echo -----------------------------------------------
 
 test: test_requires

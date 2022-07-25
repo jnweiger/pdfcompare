@@ -1,5 +1,5 @@
 
-VER=1.6.8
+VER=1.6.9	# keep in sync with pdfcompare.py:
 D=dist/pdfcompare-$(VER)
 EXCL=--exclude \*.orig --exclude \*~
 

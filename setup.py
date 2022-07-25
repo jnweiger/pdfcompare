@@ -35,6 +35,6 @@ setup(name='pdfcompare',
       cmdclass={'test': PyTest},
       long_description="".join(open('README.txt').readlines()),
       tests_require=['pytest', 'scipy'],
-      #packages=['pyPdf','reportlab.pdfgen','reportlab.lib.colors','pygame.font' ],
+      packages=['pyPdf','reportlab.pdfgen','reportlab.lib.colors','pygame.font' ],
 # 
      )

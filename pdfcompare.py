@@ -1,9 +1,9 @@
-#! /usr/bin/python
+#! /usr/bin/python3
 # -*- coding: UTF-8 -*-
 #
 # pdfcompare.py -- command line tool to show search or compare results in a PDF
 #
-# (c) 2012-2016 Juergen Weigert juewei@fabmail.org
+# (c) 2012-2022 Juergen Weigert juergen@fabmail.org
 # Distribute under GPL-2.0 or ask
 #
 # 2012-03-16, V0.1 jw - initial draught: argparse, pdftohtml-xml, font.metrics
@@ -94,6 +94,8 @@
 #                         No normal user expects or understands them.
 #                         No navigation marks per default. They are often broken, and often
 #                         useless due to page number changes. Include in -f to enable.
+# 2022-07-22, V1.6.9 jw - suggest pip install pypdf instead of fallback. Drop dependency on python-pypdf.
+#                         Support python3 on ubunut 20.04
 #
 # osc in devel:languages:python python-pypdf >= 1.13+20130112
 #  need fix from https://bugs.launchpad.net/pypdf/+bug/242756
@@ -121,7 +123,7 @@ from __future__ import with_statement
 from __future__ import print_function
 from __future__ import division
 
-__VERSION__ = '1.6.8'
+__VERSION__ = '1.6.9'
 
 try:
   # python2
@@ -134,7 +136,9 @@ try:
   from PyPDF2 import PdfFileWriter, PdfFileReader, generic as Pdf
 except ImportError:
   # Ubuntu 14.04 LTS
-  from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
+  # from pyPdf import PdfFileWriter, PdfFileReader, generic as Pdf
+  print("ERROR: pyPDF2 not found. Retry after running: sudo pip3 install pypdf pygame\n")
+  sys.exit(1)
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import Color
 import urllib   # used when normal encode fails.
@@ -143,7 +147,7 @@ import re, time
 from pprint import pprint
 import xml.etree.cElementTree as ET
 import sys, os, subprocess
-from argparse import ArgumentParser
+import argparse
 import pygame.font as PGF
 from difflib import SequenceMatcher
 # FIXME: class Hunspell should be loaded as a module
@@ -154,7 +158,9 @@ from difflib import SequenceMatcher
 import codecs
 
 # allow debug printing into less:
-sys.stdout = codecs.getwriter('utf8')(sys.stdout)
+if sys.version_info[0] < 3:
+  # this breaks in python3
+  sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 debug = False
 page_ref_magic = "675849302 to page "     # a token we use to patch the page objects.
 page_ref_plain = "to page "     # this will be visible as a popup on navigation marks.
@@ -728,7 +734,7 @@ def xml2fontinfo(dom, last_page=None):
   return finfo
 
 def main():
-  parser = ArgumentParser(epilog="version: "+__VERSION__, description="Highlight changed/added/deleted/moved text in a PDF file.")
+  parser = argparse.ArgumentParser(epilog="version: "+__VERSION__, description="Highlight changed/added/deleted/moved text in a PDF file.")
   parser.def_trans = 0.6
   parser.def_decrypt_key = ''
   parser.def_colors = { 'E': [1,0,1,    'pink'],        # extra
@@ -808,6 +814,7 @@ def main():
                       help="Put changebars and navigation at the left hand side of the page. Default: right hand side.")
   parser.add_argument("infile", metavar="INFILE", help="The input file.")
   parser.add_argument("infile2", metavar="INFILE2", nargs="?", help="Optional 'newer' input file; alternate syntax to -c")
+
   args = parser.parse_args()      # --help is automatic
 
   args.transparency = 1 - args.transparency     # it is needed reversed.
