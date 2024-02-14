@@ -1,0 +1,19 @@
+app: pdfcompare
+
+ingredients:
+  dist: xenial
+  sources:
+    - deb http://archive.ubuntu.com/ubuntu/ xenial main universe
+  packages:
+    - python-pypdf
+    - python-pygame
+    - poppler-utils
+    - python-reportlab
+    - hunspell
+    - hunspell-en-us
+    - hunspell-de-de
+  script:
+    - wget https://github.com/jnweiger/pdfcompare/releases/download/v1.6.5/pdfcompare_1.6.5-24.1_amd64.deb
+    - ls -la
+    - apt install -y ./pdfcompare_1.6.5-24.1_amd64.deb
+
