@@ -29,12 +29,14 @@
 __VERSION__ = '1.99.0'
 import urllib   # used when normal encode fails.
 from pprint import pprint
-import sys, os, subprocess
+import sys, os, subprocess, json
 import argparse
 from difflib import SequenceMatcher
 # FIXME: class Hunspell should be loaded as a module
 # import HunspellPure
 
+
+debug = 1   # 0, 1, 2 incremented by -D
 
 # Universal PyMuPDF import with fallback cascade
 mu = None
@@ -52,7 +54,7 @@ if mu is None:
 
 def load_file(name, firstpage=0, lastpage=None):
     # Now use mu consistently
-    doc = mu.open("input.pdf")
+    doc = mu.open(name)
     text = []
     words = []
     fonts = []
@@ -95,7 +97,8 @@ def load_file(name, firstpage=0, lastpage=None):
     #    "transform":[ 522.719970703125, 0.0, -0.0, 441.7453918457031, 45.0, 171.00003051757812 ],
     #    "size":433851,
     #    "image":"/9j/7gAOQWRvYmUAZIAAAAAA/9sAQwACAgIDAgMDAwMDBAQEBAQFBQUFBQUHBgYGBgYHCAcICAgIBwgJCgoKC....
-    print(f"✓ {name}")
+    if debug:
+        print(f"✓ {name}")
     return { "doc": doc, "text": text, "words": words, "fonts": fonts }
 
 
@@ -103,23 +106,28 @@ def highlight_words_in_page(page, keywords):
     rects = []
     for k in keywords:
         rects.extend(page.search_for(k))
-    print("✓ search_for")
+    if debug:
+        print("✓ search_for")
 
     if rects:
-        print(rects)
+        if debug:
+            print(rects)
         highlight = page.add_highlight_annot(rects)
         highlight.set_colors(stroke=(1, 1, 0))  # yellow background
         highlight.update()
-        print("✓ update")
+        if debug:
+            print("✓ update")
 
         # Tooltip popup (mouse-over text) for ocular.
         popup_rect = highlight.rect + (10, -50, 100, -10)  # position above/beside
         highlight.set_popup(popup_rect)
-        print("✓ highlight.set_popup")
+        if debug:
+            print("✓ highlight.set_popup")
         # the above is needed for ocular, but not evince.
 
         info = highlight.info
-        print(info)
+        if debug:
+            print(info)
         info["content"] = f"Found keyword: {keywords}"
         info["name"] = "FishMonster"
         info["title"] = "AuthorName"
@@ -127,14 +135,18 @@ def highlight_words_in_page(page, keywords):
         info["creationDate"] = "2026-01-27"
         info["modDate"] = "2026-01-28"
         highlight.set_info(info)
-        print("✓ set_info")
-        print(highlight.info)
+        if debug:
+            print("✓ set_info")
+        if debug:
+            print(highlight.info)
         highlight.set_opacity(0.5)  # 1.0 = fully opaque, 0.0 = invisible
-        print("✓ set_opacity")
+        if debug:
+            print("✓ set_opacity")
         #highlight.set_open(False)
         #print("✓ set_open")
         highlight.update()
-        print("✓ update")
+        if debug:
+            print("✓ update")
 
         # alternate method:
         point = highlight.rect.tr  # top-right of first highlight rect
@@ -145,12 +157,15 @@ def highlight_words_in_page(page, keywords):
 
 def save_file(name, doc, no_compression=False):
     doc.save(name, garbage=4, deflate=(not no_compression))
-    print("✓ save")
+    if debug:
+        print("✓ save")
     doc.close()
-    print(f"✓ {name} created with highlights + tooltips")
+    if debug:
+        print(f"✓ {name} created with highlights + tooltips")
 
 
 def main():
+    global debug
     parser = argparse.ArgumentParser(epilog="version: "+__VERSION__, description="Highlight changed/added/deleted/moved text in a PDF file.")
     parser.def_trans = 0.6
     parser.def_decrypt_key = ''
@@ -186,7 +201,7 @@ def main():
                         help="Specify what to mark. Used with -c. Allowed values are 'add','delete','change','equal'. \
                               Multiple values can be listed comma-seperated; abbreviations are allowed.\
                               Default: " + str(parser.def_marks))
-    parser.add_argument("-n", "--no-output", default=False, action="store_true",
+    parser.add_argument("-n", "--no-op", "--no-output", default=False, action="store_true",
                         help="Do not write an output file; print diagnostics only. Default: write output file as per -o option.")
     parser.add_argument("-o", "--output", metavar="OUTFILE", default=parser.def_output,
                         help="Write output to FILE; default: "+parser.def_output)
@@ -197,9 +212,7 @@ def main():
 #                              Use e.g. 'env DICTIONARY=en_US ...' (or de_DE, ...) to specify the spelling dictionary, \
 #                              if your system has more than one. To add new words to your private dictionary use e.g. \
 #                              'echo >> ~/.hunspell_en_US ownCloud'. Check with 'hunspell -D' and study 'man hunspell'.")
-    parser.add_argument("--strict", default=False, action="store_true",
-                        help="Show really all differences. Default: ignore removed hyphenation; \
-                              ignore character spacing inside a word.")
+#    parser.add_argument("--strict", default=False, action="store_true", help="Show really all differences. Default: ignore removed hyphenation; ignore character spacing inside a word.")
     parser.add_argument("-t", "--transparency", type=float, default=parser.def_trans, metavar="TRANSP",
                         help="Set transparency of the highlight; invisible: 0.0; full opaque: 1.0; \
                         default: " + str(parser.def_trans))
@@ -234,15 +247,39 @@ def main():
 
     args = parser.parse_args()      # --help is automatic
     if args.version: parser.exit(__VERSION__)
+    if args.debug: debug += 1
     args.transparency = 1 - args.transparency     # it is needed reversed.
+
+    if args.infile2 and args.compare_text:
+        parser.exit("Specify either -c and one file, or specify two files and no -c.")
+
+    if args.compare_text:
+        args.infile2 = args.infile
+        args.infile = args.compare_text
+
+    if not args.infile2:
+        parser.exit("Need a second file to compare with")
 
     if not os.access(args.infile, os.R_OK):
         parser.exit("Cannot read input file: %s" % args.infile)
-    f1 = load_file(args.infile, firstpage=args.first_page, lastpage=args.last_page)
-    # f1 = { "doc": doc, "text": text, "words": words, "fonts": fonts }
 
-    highlight_words_in_page(f1["doc"][0], ["LEVEL", "of", "the"])
-    save_file(args.output, f1["doc"], args.no_compression)
+    if debug:
+        print(args.infile, args.infile2)
+
+    # f1 = { "doc": doc, "text": text, "words": words, "fonts": fonts }
+    f1 = load_file(args.infile, firstpage=args.first_page, lastpage=args.last_page)
+    f2 = load_file(args.infile2, firstpage=args.first_page, lastpage=args.last_page)
+
+    if args.log:
+        with open(args.log, mode="w", encoding='utf-8') as fp:
+            json.dump(f1['words'], fp, indent=2)
+            fp.write("\n# -----------------------\n")
+        with open(args.log, mode="a", encoding='utf-8') as fp:
+            json.dump(f2['words'], fp, indent=2)
+
+    if not args.no_op:
+        highlight_words_in_page(f1["doc"][0], ["LEVEL", "of", "the"])
+        save_file(args.output, f1["doc"], args.no_compression)
 
 
 if __name__ == "__main__":
