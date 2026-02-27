@@ -26,7 +26,7 @@
 # References:
 #   - https://github.com/pymupdf/PyMuPDF/blob/main/docs/app1.rst#controlling-quality-of-html-output
 
-__VERSION__ = '1.99.0'
+__VERSION__ = '1.99.1'
 import urllib   # used when normal encode fails.
 from pprint import pprint
 import sys, os, subprocess, json
@@ -53,6 +53,27 @@ if mu is None:
 
 
 def load_file(name, firstpage=0, lastpage=None):
+
+    if name.lower().endswith(".pdf"):
+        return load_file_pdf(name, firstpage, lastpage)
+
+    if name.lower().endswith(".txt") or name.lower().endswith(".text"):
+        return load_file_text(name)
+
+    print("ERROR: input file name must end with .pdf or .txt, saw:", name)
+    sys.exit(1)
+
+
+def load_file_text(name):
+    words = []
+    with open(name) as fp:
+        for line in fp:
+            for word in line.split():
+                words.append([ 0, 0, 0, 0, word, 0, 0, 0])
+    return { "doc": [], "text": [], "words": [ words ] , "fonts": [] }
+
+
+def load_file_pdf(name, firstpage=0, lastpage=None):
     # Now use mu consistently
     doc = mu.open(name)
     text = []
@@ -132,6 +153,31 @@ def log_opcodes(fp, old, new, opcodes):
         if op == 'replace':
             print("-/+", old[i1:i2], file=fp)
             print("  :", new[j1:j2], file=fp)
+
+
+def add_highlight(page, text="Hello, world!", rect=(200, 500, 280, 520), color=(1, 0, 0), transparent=0.2):
+    highlight = page.add_highlight_annot(rect)
+    highlight.set_colors(stroke=color)
+    highlight.update()
+
+    # Tooltip popup (mouse-over text) for ocular.
+    popup_rect = highlight.rect + (10, -50, 100, -10)  # position above/beside
+    highlight.set_popup(popup_rect)
+    # the above is needed for ocular, but not for evince.
+
+    info = highlight.info
+    info["content"] = text
+    highlight.set_info(info)
+
+    highlight.set_opacity(1.0 - transparent)  # 1.0 = fully opaque, 0.0 = invisible
+    highlight.update()
+
+    # alternate method:
+    point = highlight.rect.tr  # top-right of first highlight rect
+    text_annot = page.add_text_annot(point, text)
+    text_annot.set_opacity(1.0 - transparent)
+    text_annot.update()
+
 
 
 def highlight_words_in_page(page, keywords):
@@ -227,6 +273,8 @@ def main():
                         'navigation', 'watermark', 'margin'. Default: " + str(parser.def_features))
     parser.add_argument("-i", "--nocase", default=False, action="store_true",
                         help="Make -s case insensitive; default: case sensitive.")
+    parser.add_argument("--dump-words", metavar="DUMPFILE",
+                        help="only dump a wordlist, similar to pdf2text.")
     parser.add_argument("-l", "--log",  metavar="LOGFILE",
                         help="Write an python datastructure describing all the overlay objects on each page. Default none.")
     parser.add_argument("-m", "--mark", metavar="OPS", default=parser.def_marks,
@@ -282,6 +330,14 @@ def main():
     if args.debug: debug += 1
     args.transparency = 1 - args.transparency     # it is needed reversed.
 
+    if args.dump_words:
+        f1 = load_file(args.infile, firstpage=args.first_page, lastpage=args.last_page)
+        flat = flatten(f1['words'])
+        with open(args.dump_words, mode="w", encoding='utf-8') as fp:
+            for page,idx,rec in flat:
+                print(rec[4], file=fp)
+        sys.exit(0)
+
     if args.infile2 and args.compare_text:
         parser.exit("Specify either -c and one file, or specify two files and no -c.")
 
@@ -333,7 +389,8 @@ def main():
             log_opcodes(fp, old_flat, new_flat, seqmatch.opcodes)
 
     if not args.no_op:
-        highlight_words_in_page(f1["doc"][0], ["LEVEL", "of", "the"])
+        # highlight_words_in_page(f1["doc"][0], ["LEVEL", "of", "the"])
+        add_highlight(f2['doc'][0], "Hello, world!", (200, 500, 280, 520), color=(1, 0, 0))
         save_file(args.output, f1["doc"], args.no_compression)
 
 
