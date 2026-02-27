@@ -31,7 +31,7 @@ import urllib   # used when normal encode fails.
 from pprint import pprint
 import sys, os, subprocess, json
 import argparse
-from difflib import SequenceMatcher
+import difflib
 # FIXME: class Hunspell should be loaded as a module
 # import HunspellPure
 
@@ -68,7 +68,7 @@ def load_file(name, firstpage=0, lastpage=None):
         firstpage = doc.page_count -1
 
     for pno in range(firstpage, lastpage+1):
-        text.append(doc.get_page_text(pno))
+        # text.append(doc.get_page_text(pno))
         words.append(doc[pno].get_text("words", sort=False))
         fonts.append(doc.get_page_fonts(pno))
 
@@ -97,9 +97,41 @@ def load_file(name, firstpage=0, lastpage=None):
     #    "transform":[ 522.719970703125, 0.0, -0.0, 441.7453918457031, 45.0, 171.00003051757812 ],
     #    "size":433851,
     #    "image":"/9j/7gAOQWRvYmUAZIAAAAAA/9sAQwACAgIDAgMDAwMDBAQEBAQFBQUFBQUHBgYGBgYHCAcICAgIBwgJCgoKC....
+
+    # words= [
+    #   [
+    #     [516.18017578125, 705.237548828125, 575.9652709960938, 712.1975708007812, "2549A–AVR–03/05", 0, 0, 0],
+    #     [36.0, 70.448486328125, 94.30778503417969, 84.42848205566406, "Features", 1, 0, 0],
+    #     [36.0, 70.448486328125, 94.30778503417969, 84.42848205566406, "More", 1, 0, 0],
+    #   ], [
+    #     [36.0, 87.24887084960938, 39.486000061035156, 97.20886993408203, "•", 1, 1, 0],
+    #     [45.119998931884766, 87.99403381347656, 65.07029724121094, 96.99403381347656, "Low", 1, 1, 1],
+    #     [67.55159759521484, 87.99403381347656, 124.70878601074219, 96.99403381347656, "Performance,", 1, 1, 2],
+    #   ]
+    # ]
     if debug:
         print(f"✓ {name}")
     return { "doc": doc, "text": text, "words": words, "fonts": fonts }
+
+
+# flatten while keeping original records
+def flatten(pages):
+    flat = []
+    for p_idx, page in enumerate(pages):
+        for r_idx, rec in enumerate(page):
+            flat.append((p_idx, r_idx, rec))
+    return flat
+
+
+def log_opcodes(fp, old, new, opcodes):
+    for op, i1,i2, j1,j2 in opcodes:
+        if op == 'delete':
+            print("-", old[i1:i2], file=fp)
+        if op == 'insert':
+            print("+", new[j1:j2], file=fp)
+        if op == 'replace':
+            print("-/+", old[i1:i2], file=fp)
+            print("  :", new[j1:j2], file=fp)
 
 
 def highlight_words_in_page(page, keywords):
@@ -270,12 +302,35 @@ def main():
     f1 = load_file(args.infile, firstpage=args.first_page, lastpage=args.last_page)
     f2 = load_file(args.infile2, firstpage=args.first_page, lastpage=args.last_page)
 
+    old_flat = flatten(f1['words'])
+    new_flat = flatten(f2['words'])
+
     if args.log:
         with open(args.log, mode="w", encoding='utf-8') as fp:
-            json.dump(f1['words'], fp, indent=2)
+            json.dump(old_flat, fp, indent=2)
             fp.write("\n# -----------------------\n")
         with open(args.log, mode="a", encoding='utf-8') as fp:
-            json.dump(f2['words'], fp, indent=2)
+            json.dump(new_flat, fp, indent=2)
+
+    old_strings = [rec[4] for _, _, rec in old_flat]
+    new_strings = [rec[4] for _, _, rec in new_flat]
+
+    if debug:
+        print("SequenceMatcher(%d, %d) ... " % (len(old_strings), len(new_strings)))
+    seqmatch = difflib.SequenceMatcher(None, old_strings, new_strings, autojunk=False)
+    if debug:
+        print(" ... get_matching_blocks() ...")
+    seqmatch.get_matching_blocks()
+    if debug:
+        print(" ... get_opcodes() ...")
+    seqmatch.get_opcodes()
+    if debug:
+        print(" ... done: %d opcodes" % len(seqmatch.opcodes))
+
+    if args.log:
+        with open(args.log, mode="a", encoding='utf-8') as fp:
+            print("\n# -----------------------", file=fp)
+            log_opcodes(fp, old_flat, new_flat, seqmatch.opcodes)
 
     if not args.no_op:
         highlight_words_in_page(f1["doc"][0], ["LEVEL", "of", "the"])
