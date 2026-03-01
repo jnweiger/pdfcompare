@@ -155,7 +155,14 @@ def log_opcodes(fp, old, new, opcodes):
             print("  :", new[j1:j2], file=fp)
 
 
-def add_highlight(page, text="Hello, world!", rect=(200, 500, 280, 520), color=(1, 0, 0), transparent=0.2):
+def add_highlight(page, text="Hello, world!", rect=(200, 500, 280, 520), mode="A", color=(1, 0, 0), fill=(0.5, 0.5, 0.5), transparent=0.2):
+    # mode letters:
+    #   A: highlight with mouse over    Okular: Hervorhebung mit Kommentar
+    #   T: text annotaiton.             Okular: Notiz (immer gelb)
+    #   F: free text annotaiton.        Okular: notiz, mit font spec und ohne icon
+
+    opac = 1.0 - transparent
+
     highlight = page.add_highlight_annot(rect)
     highlight.set_colors(stroke=color)
     highlight.update()
@@ -166,17 +173,28 @@ def add_highlight(page, text="Hello, world!", rect=(200, 500, 280, 520), color=(
     # the above is needed for ocular, but not for evince.
 
     info = highlight.info
+    info["author"] = "pdfcompare"
     info["content"] = text
     highlight.set_info(info)
 
     highlight.set_opacity(1.0 - transparent)  # 1.0 = fully opaque, 0.0 = invisible
     highlight.update()
 
-    # alternate method:
-    point = highlight.rect.tr  # top-right of first highlight rect
-    text_annot = page.add_text_annot(point, text)
-    text_annot.set_opacity(1.0 - transparent)
-    text_annot.update()
+    if "T" in mode:
+        # alternate method:
+        # point = rect[:2]  # top-left of highlight rect
+        point = [rect[1], rect[2]] # top-right of highlight rect
+        text_annot = page.add_text_annot(point, text)
+        text_annot.set_colors(stroke=color)   # border/icon color
+        text_annot.set_colors(fill=fill)   # gray
+
+        text_annot.set_opacity(opac)
+        text_annot.update()
+
+    if "F" in mode:
+       page.add_freetext_annot(rect, text, fontsize=14, fontname="helv",
+                                text_color=color, fill_color=fill, opacity=opac)
+
 
 
 
@@ -391,7 +409,10 @@ def main():
     if not args.no_op:
         # highlight_words_in_page(f1["doc"][0], ["LEVEL", "of", "the"])
         add_highlight(f2['doc'][0], "Hello, world!", (200, 500, 280, 520), color=(1, 0, 0))
-        save_file(args.output, f1["doc"], args.no_compression)
+        add_highlight(f2['doc'][0], "mode=A red", (200, 100, 280, 120), mode='A', color=(1, 0, 0))
+        add_highlight(f2['doc'][0], "mode=T green", (200, 150, 280, 170), mode='T', color=(0, 1, 0))
+        add_highlight(f2['doc'][0], "mode=F cyan", (200, 200, 280, 220), mode='F', color=(1, 0, 1))
+        save_file(args.output, f2["doc"], args.no_compression)
 
 
 if __name__ == "__main__":
