@@ -25,8 +25,9 @@
 #
 # References:
 #   - https://github.com/pymupdf/PyMuPDF/blob/main/docs/app1.rst#controlling-quality-of-html-output
+#   - https://pymupdf.readthedocs.io/en/latest/recipes-annotations.html
 
-__VERSION__ = '1.99.1'
+__VERSION__ = '1.99.2'
 import urllib   # used when normal encode fails.
 from pprint import pprint
 import sys, os, subprocess, json
@@ -155,6 +156,7 @@ def log_opcodes(fp, old, new, opcodes):
             print("  :", new[j1:j2], file=fp)
 
 
+# see https://pymupdf.readthedocs.io/en/latest/recipes-annotations.html
 def add_annotation(page, text="Hello, world!", rect=(200, 500, 280, 520), mode="H", color=(1, 0, 0), fill_c=(0.9, 0.9, 0.9), transparent=0.2):
     # mode letters:
     #   H: highlight with mouse over    Okular: Hervorhebung mit Kommentar
@@ -164,7 +166,7 @@ def add_annotation(page, text="Hello, world!", rect=(200, 500, 280, 520), mode="
     #   T: text annotaiton.             Okular: Notiz (immer gelb)
     #   F: free text annotation.        Okular: notiz, mit font spec und ohne icon
     # modifiers to combine with the main mode letters:
-    #   P: define a popup position
+    #   +: define a popup position
     #   I: Add title to info structure  (default on)
 
     opac = 1.0 - transparent
@@ -196,11 +198,15 @@ def add_annotation(page, text="Hello, world!", rect=(200, 500, 280, 520), mode="
         point = [rect[1], rect[2]] # top-right of highlight rect
         annot = page.add_text_annot(point, text, text_color=color, fill_color=fill_c, opacity=opac)
 
+    if "P" in mode:
+        # close polygon instead of rect???
+        # annot = page.add_polygon_annot(rect, text, text_color=color, fill_color=fill_c, opacity=opac)
+
     if "F" in mode:
         annot = page.add_freetext_annot(rect, text, fontsize=14, fontname="helv",
                                 text_color=color, fill_color=fill_c, opacity=opac)
 
-    if "P" in mode:
+    if "+" in mode:
         if annot:
             # Tooltip popup (mouse-over text) for ocular.
             popup_rect = annot.rect + (10, -50, 100, -10)  # position above/beside
