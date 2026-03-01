@@ -155,46 +155,69 @@ def log_opcodes(fp, old, new, opcodes):
             print("  :", new[j1:j2], file=fp)
 
 
-def add_highlight(page, text="Hello, world!", rect=(200, 500, 280, 520), mode="A", color=(1, 0, 0), fill=(0.5, 0.5, 0.5), transparent=0.2):
+def add_annotation(page, text="Hello, world!", rect=(200, 500, 280, 520), mode="H", color=(1, 0, 0), fill_c=(0.9, 0.9, 0.9), transparent=0.2):
     # mode letters:
-    #   A: highlight with mouse over    Okular: Hervorhebung mit Kommentar
+    #   H: highlight with mouse over    Okular: Hervorhebung mit Kommentar
+    #   U:  Underline_annot
+    #   X: strikethrough line
+    #   S: squiggly curly line
     #   T: text annotaiton.             Okular: Notiz (immer gelb)
-    #   F: free text annotaiton.        Okular: notiz, mit font spec und ohne icon
+    #   F: free text annotation.        Okular: notiz, mit font spec und ohne icon
+    # modifiers to combine with the main mode letters:
+    #   P: define a popup position
+    #   I: Add title to info structure  (default on)
 
     opac = 1.0 - transparent
+    annot = None
 
-    highlight = page.add_highlight_annot(rect)
-    highlight.set_colors(stroke=color)
-    highlight.update()
+    if "H" in mode:
+        annot = page.add_highlight_annot(rect)
+        annot.set_colors(stroke=color)
+        annot.set_opacity(opac)
 
-    # Tooltip popup (mouse-over text) for ocular.
-    popup_rect = highlight.rect + (10, -50, 100, -10)  # position above/beside
-    highlight.set_popup(popup_rect)
-    # the above is needed for ocular, but not for evince.
+    if "U" in mode:
+        annot = page.add_underline_annot(rect)
+        annot.set_colors(stroke=color)
+        annot.set_opacity(opac)
 
-    info = highlight.info
-    info["author"] = "pdfcompare"
-    info["content"] = text
-    highlight.set_info(info)
+    if "X" in mode:
+        annot = page.add_strikeout_annot(rect)
+        annot.set_colors(stroke=color)
+        annot.set_opacity(opac)
 
-    highlight.set_opacity(1.0 - transparent)  # 1.0 = fully opaque, 0.0 = invisible
-    highlight.update()
+    if "S" in mode:
+        annot = page.add_squiggly_annot(rect)
+        annot.set_colors(stroke=color)
+        annot.set_opacity(opac)
 
     if "T" in mode:
-        # alternate method:
+        # alternate method: an icon
         # point = rect[:2]  # top-left of highlight rect
         point = [rect[1], rect[2]] # top-right of highlight rect
-        text_annot = page.add_text_annot(point, text)
-        text_annot.set_colors(stroke=color)   # border/icon color
-        text_annot.set_colors(fill=fill)   # gray
-
-        text_annot.set_opacity(opac)
-        text_annot.update()
+        annot = page.add_text_annot(point, text, text_color=color, fill_color=fill_c, opacity=opac)
 
     if "F" in mode:
-       page.add_freetext_annot(rect, text, fontsize=14, fontname="helv",
-                                text_color=color, fill_color=fill, opacity=opac)
+        annot = page.add_freetext_annot(rect, text, fontsize=14, fontname="helv",
+                                text_color=color, fill_color=fill_c, opacity=opac)
 
+    if "P" in mode:
+        if annot:
+            # Tooltip popup (mouse-over text) for ocular.
+            popup_rect = annot.rect + (10, -50, 100, -10)  # position above/beside
+            annot.set_popup(popup_rect)
+            # the above is needed for ocular, but not for evince.
+            # FIXME: or maybe it has no effect at all?
+        else:
+            print("ERROR: Need one of the mode letters H U X S T F togehter with P")
+
+    if True:    # "I" in mode:
+        info = annot.info
+        info["title"] = "pdfcompare"    # Okular: displayed as "Autor: pdfcompare"
+        # info["subject"] = "Insert"    # Okular: only visible when "open Note"
+        info["content"] = text          # have to repeat the text here, else it is removed.
+        annot.set_info(info)
+
+    annot.update()
 
 
 
@@ -408,10 +431,11 @@ def main():
 
     if not args.no_op:
         # highlight_words_in_page(f1["doc"][0], ["LEVEL", "of", "the"])
-        add_highlight(f2['doc'][0], "Hello, world!", (200, 500, 280, 520), color=(1, 0, 0))
-        add_highlight(f2['doc'][0], "mode=A red", (200, 100, 280, 120), mode='A', color=(1, 0, 0))
-        add_highlight(f2['doc'][0], "mode=T green", (200, 150, 280, 170), mode='T', color=(0, 1, 0))
-        add_highlight(f2['doc'][0], "mode=F cyan", (200, 200, 280, 220), mode='F', color=(1, 0, 1))
+        # add_annotation(f2['doc'][0], "Hello, world!", (200, 500, 280, 520), color=(1, 0, 0))
+        add_annotation(f2['doc'][0], "mode=S red", (200, 100, 280, 120), mode='S', color=(1, 0, 0))
+        add_annotation(f2['doc'][0], "mode=HP green", (200, 150, 280, 170), mode='HP', color=(0, 1, 0))
+        add_annotation(f2['doc'][0], "m=F cyan", (200, 200, 280, 220), mode='F', color=(1,0,1))
+
         save_file(args.output, f2["doc"], args.no_compression)
 
 
