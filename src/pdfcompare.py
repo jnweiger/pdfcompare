@@ -156,8 +156,61 @@ def log_opcodes(fp, old, new, opcodes):
             print("  :", new[j1:j2], file=fp)
 
 
+def mark_opcodes(doc, old, new, opcodes):
+    for op, i1,i2, j1,j2 in opcodes:
+        page = doc
+        if op == 'delete':
+            print("-", old[i1:i2], file=fp)
+        if op == 'insert':
+            print("+", new[j1:j2], file=fp)
+        if op == 'replace':
+            print("-/+", old[i1:i2], file=fp)
+            print("  :", new[j1:j2], file=fp)
+
+
+def text_rects2polygon(rects, pad=0):
+    # pass in a list of rectangles.
+    # we construct a polygon, that contains all rectangles, but does not contain unnecessary corner areas.
+    xmin, ymin, xmax, ymax = r_bbox(rects)
+    if debug:
+        print("text_rects2polygon: r_bbox=", r_bbox(rects))
+    xmin -= pad
+    ymin -= pad
+    xmax += pad
+    ymax += pad
+    
+    if rects[0][0] > xmin+pad:
+        if rects[-1][0] < xmax-pad:
+            # both ends need a corner
+            return [(xmin, rects[0][3]-pad), (rects[0][0], rects[0][3]-pad), (rects[0][0], ymin),
+                    (xmax, ymin), (xmax, rects[-1][1]+pad), (rects[-1][2]+pad, rects[-1][1]+pad), 
+                    (rects[-1][2]+pad, ymax), (xmin, ymax)]
+        else:
+            # start needs a corner
+            return [(xmin, rects[0][3]-pad), (rects[0][0], rects[0][3]-pad), (rects[0][0], ymin),
+                    (xmax, ymin), (xmax, ymax), (xmin, ymax)]
+    else:
+        if rects[-1][2] < xmax-pad:
+            # trailing end needs a corner
+            return [(xmin, ymin), (xmax, ymin), (xmax, rects[-1][1]+pad), (rects[-1][2]+pad, rects[-1][1]+pad), 
+                    (rects[-1][2]+pad, ymax), (xmin, ymax)]
+        else:
+            # simple rectangle
+            return [(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)]
+
+
+def ins_marker(page, rect, text):
+    pass
+
+def del_marker(page, rect, text):
+    pass
+
+def chg_marker(page, rect, text):
+    pass
+
+
 # see https://pymupdf.readthedocs.io/en/latest/recipes-annotations.html
-def add_annotation(page, text="Hello, world!", rect=(200, 500, 280, 520), mode="H", color=(1, 0, 0), fill_c=(0.9, 0.9, 0.9), transparent=0.2):
+def add_annotation(page, text='', rect=(200, 500, 280, 520), mode="H", color=(1, 0, 0), fill_c=(0.9, 0.9, 0.9), transparent=0.2, href=None, goto=None):
     # mode letters:
     #   H: highlight with mouse over    Okular: Hervorhebung mit Kommentar
     #   U:  Underline_annot
@@ -165,9 +218,15 @@ def add_annotation(page, text="Hello, world!", rect=(200, 500, 280, 520), mode="
     #   S: squiggly curly line
     #   T: text annotaiton.             Okular: Notiz (immer gelb)
     #   F: free text annotation.        Okular: notiz, mit font spec und ohne icon
+    #   P: polygon. instead of the usueal (x0, y0, x1, y1) use rect=[(x0,y0), (x1,y1), (x2,y2), ...]
+    #
     # modifiers to combine with the main mode letters:
     #   +: define a popup position
     #   I: Add title to info structure  (default on)
+    #
+    # href=str: add a clickable link to a URL
+    # goto=(n, x, y): add a clickable link to page n position (x,y) 
+    # goto=n: same as goto=(n, 0, 0)
 
     opac = 1.0 - transparent
     annot = None
@@ -199,8 +258,11 @@ def add_annotation(page, text="Hello, world!", rect=(200, 500, 280, 520), mode="
         annot = page.add_text_annot(point, text, text_color=color, fill_color=fill_c, opacity=opac)
 
     if "P" in mode:
-        # close polygon instead of rect???
-        # annot = page.add_polygon_annot(rect, text, text_color=color, fill_color=fill_c, opacity=opac)
+        # rect here is a point list to form a polygon (instead of a simle rect)
+        if debug: print("add_polygon_annot: ", rect)
+        annot = page.add_polygon_annot(rect)
+        annot.set_colors(stroke=color, fill=fill_c)
+        annot.set_opacity(opac)
 
     if "F" in mode:
         annot = page.add_freetext_annot(rect, text, fontsize=14, fontname="helv",
@@ -223,8 +285,40 @@ def add_annotation(page, text="Hello, world!", rect=(200, 500, 280, 520), mode="
         info["content"] = text          # have to repeat the text here, else it is removed.
         annot.set_info(info)
 
+    if href:
+        # in case of polygon, we need to compute the boundig box of the rect object, which is actually a polygon.
+        page.insert_link({"kind": mu.LINK_URI, "from": annot.rect, "uri": href})
+
+
+    if goto:
+        # in case of polygon, we need to compute the boundig box of the rect object, which is actually a polygon.
+        point = (100,100)
+        if type(goto) == type([]):
+            point = (goto[1], goto[2])
+            goto = goto[0]
+        page.insert_link({"kind": mu.LINK_GOTO, "from": annot.rect, "to": point, "page": page})
+
     annot.update()
 
+
+def r_bbox(rects):
+    p = rects[:]
+    for r in rects:
+        p.append((r[2], r[3]))
+    return bbox(p)
+
+
+def bbox(points):
+    xmin = points[0][0]
+    xmax = points[0][0] 
+    ymin = points[0][1]
+    ymax = points[0][1] 
+    for p in points:
+        if p[0] < xmin: xmin = p[0]
+        if p[0] > xmax: xmax = p[0]
+        if p[1] < ymin: ymin = p[1]
+        if p[1] > ymax: ymax = p[1]
+    return (xmin, ymin, xmax, ymax)
 
 
 def highlight_words_in_page(page, keywords):
@@ -287,6 +381,7 @@ def save_file(name, doc, no_compression=False):
     doc.close()
     if debug:
         print(f"✓ {name} created with highlights + tooltips")
+
 
 
 def main():
@@ -439,8 +534,15 @@ def main():
         # highlight_words_in_page(f1["doc"][0], ["LEVEL", "of", "the"])
         # add_annotation(f2['doc'][0], "Hello, world!", (200, 500, 280, 520), color=(1, 0, 0))
         add_annotation(f2['doc'][0], "mode=S red", (200, 100, 280, 120), mode='S', color=(1, 0, 0))
-        add_annotation(f2['doc'][0], "mode=HP green", (200, 150, 280, 170), mode='HP', color=(0, 1, 0))
+        add_annotation(f2['doc'][0], "mode=HP green", (200, 150, 280, 170), mode='H+', color=(0, 1, 0))
         add_annotation(f2['doc'][0], "m=F cyan", (200, 200, 280, 220), mode='F', color=(1,0,1))
+
+        rects = [
+                (508, 279, 539, 293), (130, 291, 175, 302), (178, 291, 221, 305), (224,291,237,305), (239, 291, 242, 305)
+            ]
+        for r in rects:
+            add_annotation(f2['doc'][0], rect=[(r[0], r[1]), (r[2], r[1]), (r[2], r[3]), (r[0], r[3])], text="rect", mode='P')
+        add_annotation(f2['doc'][0], rect=text_rects2polygon(rects, pad=2), mode='P', fill_c=None)
 
         save_file(args.output, f2["doc"], args.no_compression)
 
