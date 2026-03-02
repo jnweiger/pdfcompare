@@ -158,19 +158,36 @@ def log_opcodes(fp, old, new, opcodes):
 
 def mark_opcodes(doc, old, new, opcodes):
     for op, i1,i2, j1,j2 in opcodes:
-        page = doc
+        # all of the deleted words in one, even if they span multiple pages.
+        #   old pagination is irrelevant, it may differ from new pagination anyway.
+        delwords = [w[2][4] for w in old[i1:i2]]
         if op == 'delete':
-            print("-", old[i1:i2], file=fp)
-        if op == 'insert':
-            print("+", new[j1:j2], file=fp)
-        if op == 'replace':
-            print("-/+", old[i1:i2], file=fp)
-            print("  :", new[j1:j2], file=fp)
+            del_marker(new[j1][0], new[j1][2], delwords)
+        if op == 'insert': or op == 'replace':
+            page_rects = split_into_pages(new[j1:j2])
+            for page,rects in page_rects:
+                if op == 'insert':
+                    ins_marker(page, rects, [])
+                else:
+                    chg_marker(page, rects, delwords)
+
+
+def split_into_pages(ops):
+    # ops = [(0, 71, (508,279,539,293, 'pariatur', 7,0,15)), (0, 72, (130,291,175,305, 'consectetur', 7,1,0)), ...]
+    #
+    # returns: [(0, [rect,rect,...]), (1, [rect,rect,rect, ...]), (2, ...), ...]
+    r = [ ( ops[0][0], []) ]
+    for op in ops:
+        if op[0] != r[-1][0]:    # new page
+            r.append((op[0], []))
+        r[-1][1].append((op[2][:4]))
+    return r
 
 
 def text_rects2polygon(rects, pad=0):
     # pass in a list of rectangles.
     # we construct a polygon, that contains all rectangles, but does not contain unnecessary corner areas.
+    # Primitive algorithm: we only check the very first and very last rect if indented.
     xmin, ymin, xmax, ymax = r_bbox(rects)
     if debug:
         print("text_rects2polygon: r_bbox=", r_bbox(rects))
@@ -178,35 +195,48 @@ def text_rects2polygon(rects, pad=0):
     ymin -= pad
     xmax += pad
     ymax += pad
-    
+
     if rects[0][0] > xmin+pad:
-        if rects[-1][0] < xmax-pad:
-            # both ends need a corner
-            return [(xmin, rects[0][3]-pad), (rects[0][0], rects[0][3]-pad), (rects[0][0], ymin),
-                    (xmax, ymin), (xmax, rects[-1][1]+pad), (rects[-1][2]+pad, rects[-1][1]+pad), 
+        if rects[-1][2] < xmax-pad:
+            # both ends need an indent
+            return [(xmin, rects[0][3]-pad), (rects[0][0]-pad, rects[0][3]-pad), (rects[0][0]-pad, ymin),
+                    (xmax, ymin), (xmax, rects[-1][1]+pad), (rects[-1][2]+pad, rects[-1][1]+pad),
                     (rects[-1][2]+pad, ymax), (xmin, ymax)]
         else:
-            # start needs a corner
-            return [(xmin, rects[0][3]-pad), (rects[0][0], rects[0][3]-pad), (rects[0][0], ymin),
+            # start needs an indent
+            return [(xmin, rects[0][3]-pad), (rects[0][0]-pad, rects[0][3]-pad), (rects[0][0]-pad, ymin),
                     (xmax, ymin), (xmax, ymax), (xmin, ymax)]
     else:
         if rects[-1][2] < xmax-pad:
-            # trailing end needs a corner
-            return [(xmin, ymin), (xmax, ymin), (xmax, rects[-1][1]+pad), (rects[-1][2]+pad, rects[-1][1]+pad), 
+            # trailing end needs an indent
+            return [(xmin, ymin), (xmax, ymin), (xmax, rects[-1][1]+pad), (rects[-1][2]+pad, rects[-1][1]+pad),
                     (rects[-1][2]+pad, ymax), (xmin, ymax)]
         else:
             # simple rectangle
+            print("text_rects2polygon: simple")
             return [(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)]
 
 
-def ins_marker(page, rect, text):
-    pass
+def ins_marker(page, rect, words):
+    chg_marker(page, rect, [], label="add", color(0,1,0))
 
-def del_marker(page, rect, text):
-    pass
 
-def chg_marker(page, rect, text):
-    pass
+def chg_marker(page, rect, words, label="chg", color=(0,1,1)):
+    text = label + ": " + ' '.join(words)
+    poly = text_rects2polygon(rect, pad=1)
+    add_annotation(page, rect=poly, mode='P', fill_c=None, color=color, href=text)
+
+
+def del_marker(page, rect, words):
+    x = rect[0]
+    y1 = rect[1]-2  # keep some space, so that ins or chg markers fit inside.
+    y2 = rect[3]+2
+    w = 2*(y2-y1)
+    poly = [ (x-w, y1), (x-w-2, y1-2), (x+w+2, y1-2), (x+w, y1),
+             (x+1, y1), (x+1, y2),
+             (x+w, y2), (x+w+2, y2+2), (x-w-2, y2+2), (x-w,y2),
+             (x-1, y2), (x-1, y1) ]
+    add_annotation(page, rect=poly, mode='P', color=(1,0,0), fill_c=(1,0,0), href='del: ' + ' '.join(words))
 
 
 # see https://pymupdf.readthedocs.io/en/latest/recipes-annotations.html
@@ -225,7 +255,7 @@ def add_annotation(page, text='', rect=(200, 500, 280, 520), mode="H", color=(1,
     #   I: Add title to info structure  (default on)
     #
     # href=str: add a clickable link to a URL
-    # goto=(n, x, y): add a clickable link to page n position (x,y) 
+    # goto=(n, x, y): add a clickable link to page n position (x,y)
     # goto=n: same as goto=(n, 0, 0)
 
     opac = 1.0 - transparent
@@ -278,7 +308,7 @@ def add_annotation(page, text='', rect=(200, 500, 280, 520), mode="H", color=(1,
         else:
             print("ERROR: Need one of the mode letters H U X S T F togehter with P")
 
-    if True:    # "I" in mode:
+    if len(text):
         info = annot.info
         info["title"] = "pdfcompare"    # Okular: displayed as "Autor: pdfcompare"
         # info["subject"] = "Insert"    # Okular: only visible when "open Note"
@@ -310,9 +340,9 @@ def r_bbox(rects):
 
 def bbox(points):
     xmin = points[0][0]
-    xmax = points[0][0] 
+    xmax = points[0][0]
     ymin = points[0][1]
-    ymax = points[0][1] 
+    ymax = points[0][1]
     for p in points:
         if p[0] < xmin: xmin = p[0]
         if p[0] > xmax: xmax = p[0]
@@ -538,7 +568,7 @@ def main():
         add_annotation(f2['doc'][0], "m=F cyan", (200, 200, 280, 220), mode='F', color=(1,0,1))
 
         rects = [
-                (508, 279, 539, 293), (130, 291, 175, 302), (178, 291, 221, 305), (224,291,237,305), (239, 291, 242, 305)
+                (508, 279, 539, 293), (130, 291, 175, 302), (178, 291, 221, 305), (224,291,237,305), (239, 291, 242, 305),
             ]
         for r in rects:
             add_annotation(f2['doc'][0], rect=[(r[0], r[1]), (r[2], r[1]), (r[2], r[3]), (r[0], r[3])], text="rect", mode='P')
