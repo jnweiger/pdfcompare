@@ -27,7 +27,7 @@
 #   - https://github.com/pymupdf/PyMuPDF/blob/main/docs/app1.rst#controlling-quality-of-html-output
 #   - https://pymupdf.readthedocs.io/en/latest/recipes-annotations.html
 
-__VERSION__ = '1.99.2'
+__VERSION__ = '1.99.3'
 import urllib   # used when normal encode fails.
 from pprint import pprint
 import sys, os, subprocess, json
@@ -131,8 +131,8 @@ def load_file_pdf(name, firstpage=0, lastpage=None):
     #     [67.55159759521484, 87.99403381347656, 124.70878601074219, 96.99403381347656, "Performance,", 1, 1, 2],
     #   ]
     # ]
-    if debug:
-        print(f"✓ {name}")
+    if debug >1:
+        print(f"load_file_pdf({name})")
     return { "doc": doc, "text": text, "words": words, "fonts": fonts }
 
 
@@ -156,31 +156,49 @@ def log_opcodes(fp, old, new, opcodes):
             print("  :", new[j1:j2], file=fp)
 
 
-def mark_opcodes(doc, old, new, opcodes):
+def mark_opcodes(doc, old, new, opcodes, hide_pop=False):
     for op, i1,i2, j1,j2 in opcodes:
         # all of the deleted words in one, even if they span multiple pages.
         #   old pagination is irrelevant, it may differ from new pagination anyway.
         delwords = [w[2][4] for w in old[i1:i2]]
         if op == 'delete':
-            del_marker(new[j1][0], new[j1][2], delwords)
-        if op == 'insert': or op == 'replace':
+            page_nr = new[j1][0]
+            if debug:
+                point = tuple(int(x) for x in new[j1][2][:2])
+                print(f"-- page={page_nr}:", point, delwords)  # just a starting point here
+            page = doc[new[j1][0]]
+            del_marker(page, new[j1][2], delwords, hide_pop=hide_pop)
+
+        if op == 'insert' or op == 'replace':
             page_rects = split_into_pages(new[j1:j2])
-            for page,rects in page_rects:
+            if debug and op == 'replace':
+                point = tuple(int(x) for x in page_rects[0][1][0][:2])
+                print(f"/- page={page_rects[0][0]}:", point, delwords)  # just take the first page...
+            for page_nr,rects,words in page_rects:
+                page = doc[page_nr]
                 if op == 'insert':
-                    ins_marker(page, rects, [])
+                    if debug:
+                        point = tuple(int(x) for x in rects[0][:2])
+                        print(f"++ page={page_nr}:", point, words)
+                    ins_marker(page, rects, [], hide_pop=hide_pop)
                 else:
-                    chg_marker(page, rects, delwords)
+                    if debug:
+                        point = tuple(int(x) for x in rects[0][:2])
+                        print(f"\\+ page={page_nr}:", point, words)
+                    chg_marker(page, rects, delwords, hide_pop=hide_pop)
 
 
 def split_into_pages(ops):
     # ops = [(0, 71, (508,279,539,293, 'pariatur', 7,0,15)), (0, 72, (130,291,175,305, 'consectetur', 7,1,0)), ...]
     #
-    # returns: [(0, [rect,rect,...]), (1, [rect,rect,rect, ...]), (2, ...), ...]
-    r = [ ( ops[0][0], []) ]
+    # returns: [(0, [rect,rect,...], ["word", "word", ...]), (1, [rect,...], ["word", ...]), (2, ...), ...]
+    # (the third element (list of words) is only used for diagnostics prints.)
+    r = [ ( ops[0][0], [], []) ]
     for op in ops:
         if op[0] != r[-1][0]:    # new page
-            r.append((op[0], []))
-        r[-1][1].append((op[2][:4]))
+            r.append((op[0], [], []))
+        r[-1][1].append((op[2][:4]))    # rect
+        r[-1][2].append((op[2][4]))     # "word"
     return r
 
 
@@ -189,7 +207,7 @@ def text_rects2polygon(rects, pad=0):
     # we construct a polygon, that contains all rectangles, but does not contain unnecessary corner areas.
     # Primitive algorithm: we only check the very first and very last rect if indented.
     xmin, ymin, xmax, ymax = r_bbox(rects)
-    if debug:
+    if debug > 1:
         print("text_rects2polygon: r_bbox=", r_bbox(rects))
     xmin -= pad
     ymin -= pad
@@ -213,21 +231,23 @@ def text_rects2polygon(rects, pad=0):
                     (rects[-1][2]+pad, ymax), (xmin, ymax)]
         else:
             # simple rectangle
-            print("text_rects2polygon: simple")
+            if debug > 1:
+                print("text_rects2polygon: simple")
             return [(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)]
 
 
-def ins_marker(page, rect, words):
-    chg_marker(page, rect, [], label="add", color(0,1,0))
+def ins_marker(page, rect, words, color=(0,1,0), hide_pop=False):
+    chg_marker(page, rect, [], label="add", color=color, hide_pop=hide_pop)
 
 
-def chg_marker(page, rect, words, label="chg", color=(0,1,1)):
-    text = label + ": " + ' '.join(words)
+def chg_marker(page, rect, words, label="chg", color=(0,1,1), hide_pop=False):
+    ht = "[" + label + "] " + ' '.join(words)
+    tt = '' if hide_pop else ht
     poly = text_rects2polygon(rect, pad=1)
-    add_annotation(page, rect=poly, mode='P', fill_c=None, color=color, href=text)
+    add_annotation(page, text=tt, rect=poly, mode='P', fill_c=None, color=color, href=ht)
 
 
-def del_marker(page, rect, words):
+def del_marker(page, rect, words, hide_pop=False):
     x = rect[0]
     y1 = rect[1]-2  # keep some space, so that ins or chg markers fit inside.
     y2 = rect[3]+2
@@ -236,7 +256,9 @@ def del_marker(page, rect, words):
              (x+1, y1), (x+1, y2),
              (x+w, y2), (x+w+2, y2+2), (x-w-2, y2+2), (x-w,y2),
              (x-1, y2), (x-1, y1) ]
-    add_annotation(page, rect=poly, mode='P', color=(1,0,0), fill_c=(1,0,0), href='del: ' + ' '.join(words))
+    ht = '[del] ' + ' '.join(words)
+    tt = '' if hide_pop else ht
+    add_annotation(page, text=tt, rect=poly, mode='P', color=(1,0,0), fill_c=(1,0,0), href=ht)
 
 
 # see https://pymupdf.readthedocs.io/en/latest/recipes-annotations.html
@@ -289,7 +311,8 @@ def add_annotation(page, text='', rect=(200, 500, 280, 520), mode="H", color=(1,
 
     if "P" in mode:
         # rect here is a point list to form a polygon (instead of a simle rect)
-        if debug: print("add_polygon_annot: ", rect)
+        if debug>1:
+            print("add_polygon_annot: ", rect)
         annot = page.add_polygon_annot(rect)
         annot.set_colors(stroke=color, fill=fill_c)
         annot.set_opacity(opac)
@@ -314,11 +337,12 @@ def add_annotation(page, text='', rect=(200, 500, 280, 520), mode="H", color=(1,
         # info["subject"] = "Insert"    # Okular: only visible when "open Note"
         info["content"] = text          # have to repeat the text here, else it is removed.
         annot.set_info(info)
+    else:
+        hide_annotation_popup(page, annot)
 
     if href:
         # in case of polygon, we need to compute the boundig box of the rect object, which is actually a polygon.
         page.insert_link({"kind": mu.LINK_URI, "from": annot.rect, "uri": href})
-
 
     if goto:
         # in case of polygon, we need to compute the boundig box of the rect object, which is actually a polygon.
@@ -329,6 +353,18 @@ def add_annotation(page, text='', rect=(200, 500, 280, 520), mode="H", color=(1,
         page.insert_link({"kind": mu.LINK_GOTO, "from": annot.rect, "to": point, "page": page})
 
     annot.update()
+
+
+def hide_annotation_popup(page, a):
+    # try to hide the popup
+    a.set_info(title="", content="", subject="")    # all strings empty? does not work in okular
+    a.set_popup(mu.Rect(0,0,0,0))                   # zero size? does not work in okular
+
+    for a in page.annots():
+        print("hide? ", a, a.type)
+        if a.type[0] == "Popup" and a.parent == annot:
+            print(" ... yes.")
+            a.delete()
 
 
 def r_bbox(rects):
@@ -406,11 +442,9 @@ def highlight_words_in_page(page, keywords):
 
 def save_file(name, doc, no_compression=False):
     doc.save(name, garbage=4, deflate=(not no_compression))
-    if debug:
-        print("✓ save")
     doc.close()
     if debug:
-        print(f"✓ {name} created with highlights + tooltips")
+        print(f"{name} created with highlights + tooltips")
 
 
 
@@ -468,28 +502,32 @@ def main():
     parser.add_argument("-t", "--transparency", type=float, default=parser.def_trans, metavar="TRANSP",
                         help="Set transparency of the highlight; invisible: 0.0; full opaque: 1.0; \
                         default: " + str(parser.def_trans))
-    parser.add_argument("-B", "--below", default=parser.def_below, action="store_true",
-                        help="Paint the highlight markers below the text. Try this if the normal merge crashes. Use with care, highlights may disappear below background graphics. Default: BELOW='"+str(parser.def_below)+"'.")
-    parser.add_argument("-C", "--search-color", metavar="NAME=R,G,B", action="append",
-                        help="Set colors of the search highlights as an RGB triplet; R,G,B ranges are 0.0-1.0 each; valid names are 'add,'delete','change','equal','margin','all'; default name is 'equal', which is also used for -s; default colors are " +
-                        " ".join(["%s=%s,%s,%s /*%s*/ " %(x_y[0],x_y[1][0],x_y[1][1],x_y[1][2],x_y[1][3]) for x_y in list(parser.def_colors.items())]))
+#    parser.add_argument("-B", "--below", default=parser.def_below, action="store_true",
+#                        help="Paint the highlight markers below the text. Try this if the normal merge crashes. Use with care, highlights may disappear below background graphics. Default: BELOW='"+str(parser.def_below)+"'.")
+#    parser.add_argument("-C", "--search-color", metavar="NAME=R,G,B", action="append",
+#                        help="Set colors of the search highlights as an RGB triplet; R,G,B ranges are 0.0-1.0 each; valid names are 'add,'delete','change','equal','margin','all'; default name is 'equal', which is also used for -s; default colors are " +
+#                        " ".join(["%s=%s,%s,%s /*%s*/ " %(x_y[0],x_y[1][0],x_y[1][1],x_y[1][2],x_y[1][3]) for x_y in list(parser.def_colors.items())]))
     parser.add_argument("-D", "--debug", default=False, action="store_true",
-                        help="Enable debugging. Prints more on stdout, dumps several *.xml or *.pdf files.")
+                        help="Enable debugging. Print more on stdout. See also --log.")
+    parser.add_argument("-Q", "--quiet", default=False, action="store_true",
+                        help="Be quiet. Print nothing on stdout, unless there is an error.")
     parser.add_argument("-F", "--first-page", metavar="FIRST_PAGE",
                         help="Skip some pages at start of document; see also -L option. Default: all pages.")
     parser.add_argument("-L", "--last-page", metavar="LAST_PAGE",
                         help="Limit pages processed; this counts pages starting with 0. It does not use document \
                         page numbers; see also -F; default: all pages.")
-    parser.add_argument("-M", "--margins", metavar="N,E,W,S", default=parser.def_margins,
-                        help="Specify margin space to ignore on each page. A margin width is expressed \
-                        in units of ca. 100dpi. Specify four numbers in the order north,east,west,south. Default: "\
-                        + str(parser.def_margins))
-    parser.add_argument("-S", "--source-location", default=False, action="store_true",
-                        help="Annotation start includes :pNX: markers where 'N' is the page number of the location \
-                              in the original document and X is 't' for top, 'c' for center, or 'b' for bottom of the page. \
-                              Default: Annotations start only with 'chg:', 'add:', 'del:' optionally followed by original text.")
+#    parser.add_argument("-M", "--margins", metavar="N,E,W,S", default=parser.def_margins,
+#                        help="Specify margin space to ignore on each page. A margin width is expressed \
+#                        in units of ca. 100dpi. Specify four numbers in the order north,east,west,south. Default: "\
+#                        + str(parser.def_margins))
+#    parser.add_argument("-S", "--source-location", default=False, action="store_true",
+#                        help="Annotation start includes :pNX: markers where 'N' is the page number of the location \
+#                              in the original document and X is 't' for top, 'c' for center, or 'b' for bottom of the page. \
+#                              Default: Annotations start only with 'chg:', 'add:', 'del:' optionally followed by original text.")
     parser.add_argument("-V", "--version", default=False, action="store_true",
                         help="Print the version number and exit.")
+    parser.add_argument("-H", "--hide-popups", default=False, action="store_true",
+                        help="Try to hide annotation popups. Does not work in okular.")
     parser.add_argument("-X", "--no-compression", default=False, action="store_true",
                         help="Write uncompressed PDF. Default: FlateEncode filter compression.")
     parser.add_argument("--leftside", default=False, action="store_true",
@@ -500,6 +538,7 @@ def main():
     args = parser.parse_args()      # --help is automatic
     if args.version: parser.exit(__VERSION__)
     if args.debug: debug += 1
+    if args.quiet: debug = 0
     args.transparency = 1 - args.transparency     # it is needed reversed.
 
     if args.dump_words:
@@ -523,7 +562,7 @@ def main():
     if not os.access(args.infile, os.R_OK):
         parser.exit("Cannot read input file: %s" % args.infile)
 
-    if debug:
+    if debug > 1:
         print(args.infile, args.infile2)
 
     # f1 = { "doc": doc, "text": text, "words": words, "fonts": fonts }
@@ -544,16 +583,16 @@ def main():
     new_strings = [rec[4] for _, _, rec in new_flat]
 
     if debug:
-        print("SequenceMatcher(%d, %d) ... " % (len(old_strings), len(new_strings)))
+        print("SequenceMatcher(len=%d, len=%d) ... " % (len(old_strings), len(new_strings)))
     seqmatch = difflib.SequenceMatcher(None, old_strings, new_strings, autojunk=False)
-    if debug:
+    if debug > 1:
         print(" ... get_matching_blocks() ...")
     seqmatch.get_matching_blocks()
-    if debug:
+    if debug > 1:
         print(" ... get_opcodes() ...")
     seqmatch.get_opcodes()
     if debug:
-        print(" ... done: %d opcodes" % len(seqmatch.opcodes))
+        print(" ... done: found %d opcodes" % len(seqmatch.opcodes))
 
     if args.log:
         with open(args.log, mode="a", encoding='utf-8') as fp:
@@ -561,19 +600,21 @@ def main():
             log_opcodes(fp, old_flat, new_flat, seqmatch.opcodes)
 
     if not args.no_op:
-        # highlight_words_in_page(f1["doc"][0], ["LEVEL", "of", "the"])
-        # add_annotation(f2['doc'][0], "Hello, world!", (200, 500, 280, 520), color=(1, 0, 0))
-        add_annotation(f2['doc'][0], "mode=S red", (200, 100, 280, 120), mode='S', color=(1, 0, 0))
-        add_annotation(f2['doc'][0], "mode=HP green", (200, 150, 280, 170), mode='H+', color=(0, 1, 0))
-        add_annotation(f2['doc'][0], "m=F cyan", (200, 200, 280, 220), mode='F', color=(1,0,1))
+        if False:
+            # highlight_words_in_page(f1["doc"][0], ["LEVEL", "of", "the"])
+            # add_annotation(f2['doc'][0], "Hello, world!", (200, 500, 280, 520), color=(1, 0, 0))
+            add_annotation(f2['doc'][0], "mode=S red", (200, 100, 280, 120), mode='S', color=(1, 0, 0))
+            add_annotation(f2['doc'][0], "mode=HP green", (200, 150, 280, 170), mode='H+', color=(0, 1, 0))
+            add_annotation(f2['doc'][0], "m=F cyan", (200, 200, 280, 220), mode='F', color=(1,0,1))
 
-        rects = [
-                (508, 279, 539, 293), (130, 291, 175, 302), (178, 291, 221, 305), (224,291,237,305), (239, 291, 242, 305),
-            ]
-        for r in rects:
-            add_annotation(f2['doc'][0], rect=[(r[0], r[1]), (r[2], r[1]), (r[2], r[3]), (r[0], r[3])], text="rect", mode='P')
-        add_annotation(f2['doc'][0], rect=text_rects2polygon(rects, pad=2), mode='P', fill_c=None)
-
+            rects = [
+                    (508, 279, 539, 293), (130, 291, 175, 302), (178, 291, 221, 305), (224,291,237,305), (239, 291, 242, 305),
+                ]
+            for r in rects:
+                add_annotation(f2['doc'][0], rect=[(r[0], r[1]), (r[2], r[1]), (r[2], r[3]), (r[0], r[3])], text="rect", mode='P')
+            add_annotation(f2['doc'][0], rect=text_rects2polygon(rects, pad=2), mode='P', fill_c=None)
+        else:
+            mark_opcodes(f2["doc"], old_flat, new_flat, seqmatch.opcodes, args.hide_popups)
         save_file(args.output, f2["doc"], args.no_compression)
 
 
