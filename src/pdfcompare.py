@@ -27,7 +27,7 @@
 #   - https://github.com/pymupdf/PyMuPDF/blob/main/docs/app1.rst#controlling-quality-of-html-output
 #   - https://pymupdf.readthedocs.io/en/latest/recipes-annotations.html
 
-__VERSION__ = '1.99.3'
+__VERSION__ = '1.99.4'
 import urllib   # used when normal encode fails.
 from pprint import pprint
 import sys, os, subprocess, json
@@ -180,7 +180,7 @@ def mark_opcodes(doc, old, new, opcodes, hide_pop=False):
                     if debug:
                         point = tuple(int(x) for x in rects[0][:2])
                         print(f"++ page={page_nr}:", point, words)
-                    ins_marker(page, rects, [], hide_pop=hide_pop)
+                    ins_marker(page, rects, words, hide_pop=hide_pop)
                 else:
                     if debug:
                         point = tuple(int(x) for x in rects[0][:2])
@@ -237,7 +237,7 @@ def text_rects2polygon(rects, pad=0):
 
 
 def ins_marker(page, rect, words, color=(0,1,0), hide_pop=False):
-    chg_marker(page, rect, [], label="add", color=color, hide_pop=hide_pop)
+    chg_marker(page, rect, words, label="add", color=color, hide_pop=hide_pop)
 
 
 def chg_marker(page, rect, words, label="chg", color=(0,1,1), hide_pop=False):
@@ -252,9 +252,10 @@ def del_marker(page, rect, words, hide_pop=False):
     y1 = rect[1]-2  # keep some space, so that ins or chg markers fit inside.
     y2 = rect[3]+2
     w = 2*(y2-y1)
-    poly = [ (x-w, y1), (x-w-2, y1-2), (x+w+2, y1-2), (x+w, y1),
+    m=1
+    poly = [ (x-w, y1), (x-w-m, y1-m), (x+w+m, y1-m), (x+w, y1),
              (x+1, y1), (x+1, y2),
-             (x+w, y2), (x+w+2, y2+2), (x-w-2, y2+2), (x-w,y2),
+             (x+w, y2), (x+w+m, y2+m), (x-w-m, y2+m), (x-w,y2),
              (x-1, y2), (x-1, y1) ]
     ht = '[del] ' + ' '.join(words)
     tt = '' if hide_pop else ht
